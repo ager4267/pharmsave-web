@@ -16,12 +16,10 @@ export default function ResetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // URL에서 토큰 확인
-    const token = searchParams.get('token')
-    if (!token) {
-      setError('유효하지 않은 링크입니다. 비밀번호 재설정 링크를 다시 요청해주세요.')
-    }
-  }, [searchParams])
+    // Supabase 비밀번호 재설정 링크를 클릭하면 자동으로 세션이 설정됩니다
+    // 초기 검증은 하지 않고, 비밀번호 변경 시도 시 오류를 처리합니다
+    // URL 해시에서 access_token이 있으면 Supabase가 자동으로 처리합니다
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,6 +41,16 @@ export default function ResetPasswordPage() {
     setLoading(true)
 
     try {
+      // 세션 확인 (비밀번호 재설정 링크를 통해 접근한 경우 세션이 있어야 함)
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (!session) {
+        // 세션이 없으면 유효하지 않은 링크
+        setError('유효하지 않은 링크입니다. 비밀번호 재설정 링크를 다시 요청해주세요.')
+        setLoading(false)
+        return
+      }
+
       // Supabase 비밀번호 업데이트
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
@@ -50,7 +58,13 @@ export default function ResetPasswordPage() {
 
       if (updateError) {
         console.error('❌ 비밀번호 재설정 오류:', updateError)
-        setError(updateError.message || '비밀번호 재설정에 실패했습니다.')
+        
+        // 세션 만료 오류인 경우
+        if (updateError.message.includes('session') || updateError.message.includes('expired') || updateError.message.includes('invalid')) {
+          setError('링크가 만료되었거나 유효하지 않습니다. 비밀번호 재설정 링크를 다시 요청해주세요.')
+        } else {
+          setError(updateError.message || '비밀번호 재설정에 실패했습니다.')
+        }
         setLoading(false)
         return
       }

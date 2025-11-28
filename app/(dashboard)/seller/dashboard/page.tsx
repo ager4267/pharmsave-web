@@ -71,6 +71,16 @@ export default function SellerDashboardPage() {
               return
             }
 
+            // 관리자 승인 상태 확인
+            const verificationStatus = apiProfile.license_verification_status || 'pending'
+            if (verificationStatus !== 'approved') {
+              console.log('❌ 관리자 승인 대기 중인 사용자, 로그아웃 처리')
+              await supabase.auth.signOut()
+              router.push('/login')
+              setLoading(false)
+              return
+            }
+
             setProfile(apiProfile as Profile)
           }
         }
@@ -84,6 +94,16 @@ export default function SellerDashboardPage() {
           .maybeSingle()
 
         if (profileData) {
+          // 관리자 승인 상태 확인
+          const verificationStatus = profileData.license_verification_status || 'pending'
+          if (verificationStatus !== 'approved') {
+            console.log('❌ 관리자 승인 대기 중인 사용자, 로그아웃 처리')
+            await supabase.auth.signOut()
+            router.push('/login')
+            setLoading(false)
+            return
+          }
+          
           setProfile(profileData as Profile)
         }
       }

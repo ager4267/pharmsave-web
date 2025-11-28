@@ -19,9 +19,38 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!companyName || !businessNumber || !phoneNumber || !address || !accountNumber) {
+    // 필수 필드 검증 (빈 문자열도 체크)
+    if (!companyName || companyName.trim() === '') {
       return NextResponse.json(
-        { success: false, error: '회사명, 사업자등록번호, 전화번호, 주소, 계좌번호는 필수 항목입니다.' },
+        { success: false, error: '회사명은 필수 항목입니다.' },
+        { status: 400 }
+      )
+    }
+    
+    if (!businessNumber || businessNumber.trim() === '') {
+      return NextResponse.json(
+        { success: false, error: '사업자등록번호는 필수 항목입니다.' },
+        { status: 400 }
+      )
+    }
+    
+    if (!phoneNumber || phoneNumber.trim() === '') {
+      return NextResponse.json(
+        { success: false, error: '전화번호는 필수 항목입니다.' },
+        { status: 400 }
+      )
+    }
+    
+    if (!address || address.trim() === '') {
+      return NextResponse.json(
+        { success: false, error: '주소는 필수 항목입니다.' },
+        { status: 400 }
+      )
+    }
+    
+    if (!accountNumber || accountNumber.trim() === '') {
+      return NextResponse.json(
+        { success: false, error: '계좌번호는 필수 항목입니다.' },
         { status: 400 }
       )
     }

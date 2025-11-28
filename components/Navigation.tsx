@@ -15,8 +15,12 @@ export default function Navigation() {
   const supabase = createClient()
 
   const fetchProfile = useCallback(async () => {
-    // 홈 페이지에서는 즉시 로딩 해제
+    // 홈 페이지에서는 사용자 확인 후 프로필 초기화
     if (pathname === '/') {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setProfile(null) // 로그아웃 상태이면 프로필 초기화
+      }
       setLoading(false)
       return
     }
@@ -26,6 +30,7 @@ export default function Navigation() {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       
       if (userError || !user) {
+        setProfile(null) // 사용자가 없으면 프로필 초기화
         setLoading(false)
         return
       }
@@ -41,7 +46,23 @@ export default function Navigation() {
         if (response.ok) {
           const result = await response.json()
           if (result.success && result.profile) {
-            setProfile(result.profile as Profile)
+            const profile = result.profile as Profile
+            
+            // 관리자 승인 상태 확인 (관리자는 제외)
+            if (profile.role !== 'admin') {
+              const verificationStatus = profile.license_verification_status || 'pending'
+              
+              if (verificationStatus !== 'approved') {
+                // 승인되지 않은 사용자는 로그아웃 처리
+                console.log('❌ 관리자 승인 대기 중인 사용자, 로그아웃 처리')
+                await supabase.auth.signOut()
+                router.push('/login')
+                setLoading(false)
+                return
+              }
+            }
+            
+            setProfile(profile)
             setLoading(false)
             return
           }
@@ -59,7 +80,23 @@ export default function Navigation() {
           .single()
         
         if (!error && data) {
-          setProfile(data as Profile)
+          const profile = data as Profile
+          
+          // 관리자 승인 상태 확인 (관리자는 제외)
+          if (profile.role !== 'admin') {
+            const verificationStatus = profile.license_verification_status || 'pending'
+            
+            if (verificationStatus !== 'approved') {
+              // 승인되지 않은 사용자는 로그아웃 처리
+              console.log('❌ 관리자 승인 대기 중인 사용자, 로그아웃 처리')
+              await supabase.auth.signOut()
+              router.push('/login')
+              setLoading(false)
+              return
+            }
+          }
+          
+          setProfile(profile)
         }
       } catch (directError) {
         console.warn('⚠️ Navigation 직접 조회 실패')
@@ -74,13 +111,21 @@ export default function Navigation() {
   useEffect(() => {
     // 로그인/회원가입 페이지에서는 프로필 조회하지 않음
     if (pathname === '/login' || pathname === '/register') {
+      setProfile(null) // 프로필 초기화
       setLoading(false)
       return
     }
 
-    // 홈 페이지에서는 즉시 로딩 해제
+    // 홈 페이지에서는 사용자 확인 후 프로필 초기화
     if (pathname === '/') {
-      setLoading(false)
+      const checkUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setProfile(null) // 로그아웃 상태이면 프로필 초기화
+        }
+        setLoading(false)
+      }
+      checkUser()
       return
     }
 
@@ -94,7 +139,23 @@ export default function Navigation() {
     return () => {
       clearTimeout(forceTimeout)
     }
-  }, [pathname, fetchProfile])
+  }, [pathname, fetchProfile, supabase])
+
+  // Supabase auth 상태 변경 감지 (로그아웃 시 프로필 초기화)
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setProfile(null) // 로그아웃 시 프로필 초기화
+        setLoading(false)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
 
   // 로그인/회원가입 페이지에서는 Navigation 숨기기
   if (pathname === '/login' || pathname === '/register') {
@@ -103,6 +164,7 @@ export default function Navigation() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+    setProfile(null) // 프로필 상태 초기화
     router.push('/')
   }
 

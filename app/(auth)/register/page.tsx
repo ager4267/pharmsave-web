@@ -63,9 +63,25 @@ export default function RegisterPage() {
       return
     }
 
-    // 필수 필드 확인
-    if (!formData.email || !formData.password || !formData.company_name || !formData.business_number || !formData.phone_number || !formData.address || !formData.account_number) {
+    // 필수 필드 확인 (빈 문자열도 체크)
+    if (!formData.email || !formData.password || !formData.company_name || !formData.business_number) {
       setError('필수 항목을 모두 입력해주세요.')
+      return
+    }
+    
+    // 전화번호, 주소, 계좌번호 필수 필드 확인
+    if (!formData.phone_number || formData.phone_number.trim() === '') {
+      setError('전화번호를 입력해주세요.')
+      return
+    }
+    
+    if (!formData.address || formData.address.trim() === '') {
+      setError('주소를 입력해주세요.')
+      return
+    }
+    
+    if (!formData.account_number || formData.account_number.trim() === '') {
+      setError('계좌번호를 입력해주세요.')
       return
     }
 
@@ -283,18 +299,44 @@ export default function RegisterPage() {
                 console.log('✅ 재시도 후 프로필 생성 성공')
                 profileExists = true
               } else {
+                // 재시도 실패 시, 프로필이 실제로 생성되었는지 확인
+                console.log('재시도 실패, 프로필 존재 여부 확인 중...')
+                const { data: checkProfile } = await supabase
+                  .from('profiles')
+                  .select('id')
+                  .eq('id', userId)
+                  .maybeSingle()
+                
+                if (checkProfile) {
+                  console.log('✅ 프로필이 실제로 존재함, 계속 진행')
+                  profileExists = true
+                } else {
+                  setError(
+                    `프로필 생성에 실패했습니다: 회원가입은 완료되었지만 프로필 생성에 실패했습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요. (오류: ${retryData.error || '알 수 없는 오류'})`
+                  )
+                  setLoading(false)
+                  return
+                }
+              }
+            } else {
+              // 프로필 생성 실패 시, 프로필이 실제로 생성되었는지 확인
+              console.log('프로필 생성 실패, 프로필 존재 여부 확인 중...')
+              const { data: checkProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', userId)
+                .maybeSingle()
+              
+              if (checkProfile) {
+                console.log('✅ 프로필이 실제로 존재함, 계속 진행')
+                profileExists = true
+              } else {
                 setError(
-                  `프로필 생성에 실패했습니다: 회원가입은 완료되었지만 프로필 생성에 실패했습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요.`
+                  `프로필 생성에 실패했습니다: ${data.error || '알 수 없는 오류'} 관리자에게 문의하세요.`
                 )
                 setLoading(false)
                 return
               }
-            } else {
-              setError(
-                `프로필 생성에 실패했습니다: ${data.error || '알 수 없는 오류'} 관리자에게 문의하세요.`
-              )
-              setLoading(false)
-              return
             }
           }
         } catch (apiError: any) {
@@ -335,9 +377,9 @@ export default function RegisterPage() {
             adminUserId: userId, // 본인 프로필 업데이트
             companyName: formData.company_name.trim(), // 공백 제거
             businessNumber: formData.business_number.replace(/-/g, ''), // 하이픈 제거
-            phoneNumber: formData.phone_number?.trim() || null,
-            address: formData.address?.trim() || null,
-            accountNumber: formData.account_number?.trim() || null,
+            phoneNumber: formData.phone_number.trim(), // 필수 필드이므로 null 체크 불필요
+            address: formData.address.trim(), // 필수 필드이므로 null 체크 불필요
+            accountNumber: formData.account_number.trim(), // 필수 필드이므로 null 체크 불필요
           }),
         })
 

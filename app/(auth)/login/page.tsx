@@ -130,6 +130,26 @@ export default function LoginPage() {
           const profile = result.profile
           console.log('✅ API를 통해 프로필 조회 성공:', profile.role)
           
+          // 관리자 승인 상태 확인
+          const verificationStatus = profile.license_verification_status || 'pending'
+          
+          if (verificationStatus !== 'approved') {
+            // 승인되지 않은 사용자는 로그인 차단
+            console.log('❌ 관리자 승인 대기 중인 사용자:', verificationStatus)
+            
+            // 로그아웃 처리
+            await supabase.auth.signOut()
+            
+            setLoading(false)
+            
+            if (verificationStatus === 'rejected') {
+              setError('회원가입이 거부되었습니다. 관리자에게 문의하세요.')
+            } else {
+              setError('관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.')
+            }
+            return
+          }
+          
           // 리다이렉트 전에 로딩 상태 해제
           setLoading(false)
           
