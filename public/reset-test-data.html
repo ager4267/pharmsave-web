@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>테스트 데이터 초기화</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #dc2626;
+            margin-bottom: 20px;
+        }
+        .warning {
+            background: #fef2f2;
+            border: 2px solid #fecaca;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning strong {
+            color: #dc2626;
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .result.success {
+            background: #d1fae5;
+            border: 2px solid #10b981;
+            color: #065f46;
+        }
+        .result.error {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+        }
+        .result.loading {
+            background: #dbeafe;
+            border: 2px solid #3b82f6;
+            color: #1e40af;
+        }
+        .details {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .details table {
+            width: 100%;
+            margin-top: 10px;
+            border-collapse: collapse;
+        }
+        .details td {
+            padding: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .details td:first-child {
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ 테스트 데이터 초기화</h1>
+        
+        <div class="warning">
+            <strong>⚠️ 경고</strong>
+            <p>이 작업은 관리자를 제외한 모든 사용자 데이터를 삭제합니다.</p>
+            <p><strong>이 작업은 되돌릴 수 없습니다!</strong></p>
+        </div>
+
+        <div>
+            <h3>삭제 대상:</h3>
+            <ul>
+                <li>사용자 프로필 (관리자 제외)</li>
+                <li>판매 리스트, 상품, 구매 요청</li>
+                <li>포인트 및 거래 내역</li>
+                <li>재고 분석 데이터</li>
+            </ul>
+        </div>
+
+        <div>
+            <h3>보존 대상:</h3>
+            <ul>
+                <li>관리자 계정 및 관련 데이터</li>
+            </ul>
+        </div>
+
+        <button id="resetBtn" onclick="resetTestData()">초기화 실행</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        async function resetTestData() {
+            const btn = document.getElementById('resetBtn');
+            const result = document.getElementById('result');
+            
+            // 확인
+            if (!confirm('정말로 초기화하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다!')) {
+                return;
+            }
+
+            if (!confirm('마지막 확인입니다. 정말로 진행하시겠습니까?')) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '초기화 중...';
+            result.className = 'result loading';
+            result.style.display = 'block';
+            result.innerHTML = '🔄 초기화를 진행하고 있습니다. 잠시만 기다려주세요...';
+
+            try {
+                const response = await fetch('/api/admin/reset-test-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    result.className = 'result success';
+                    let html = `
+                        <h3>✅ 초기화 완료!</h3>
+                        <div class="details">
+                            <p><strong>총 삭제 항목:</strong> ${data.totalDeleted}개</p>
+                            <p><strong>보존된 관리자:</strong> ${data.adminCount}명</p>
+                            <h4>상세 내역:</h4>
+                            <table>
+                    `;
+                    
+                    Object.entries(data.deletionResults).forEach(([table, count]) => {
+                        if (count > 0) {
+                            html += `<tr><td>${table}</td><td>${count}개</td></tr>`;
+                        }
+                    });
+                    
+                    html += `
+                            </table>
+                            <p style="margin-top: 15px; color: #dc2626;">
+                                <strong>⚠️ 참고:</strong> Supabase Auth 사용자(auth.users)는 별도로 삭제해야 합니다.
+                            </p>
+                        </div>
+                    `;
+                    
+                    result.innerHTML = html;
+                    
+                    if (confirm('초기화가 완료되었습니다. 페이지를 새로고침하시겠습니까?')) {
+                        window.location.reload();
+                    }
+                } else {
+                    result.className = 'result error';
+                    result.innerHTML = `
+                        <h3>❌ 초기화 실패</h3>
+                        <p><strong>오류:</strong> ${data.error}</p>
+                        <p style="margin-top: 10px;">
+                            관리자로 로그인한 상태에서 실행해야 합니다.
+                        </p>
+                    `;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `
+                    <h3>❌ 오류 발생</h3>
+                    <p><strong>오류:</strong> ${error.message}</p>
+                    <p style="margin-top: 10px;">
+                        서버가 실행 중인지 확인하거나, 관리자로 로그인했는지 확인하세요.
+                    </p>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '초기화 실행';
+            }
+        }
+
+        // 페이지 로드 시 관리자 권한 확인
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/admin/get-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: 'check' })
+                });
+                
+                // 권한 확인은 API에서 처리되므로 여기서는 단순히 버튼 활성화
+            } catch (error) {
+                console.log('권한 확인 중 오류 (정상일 수 있음):', error);
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
