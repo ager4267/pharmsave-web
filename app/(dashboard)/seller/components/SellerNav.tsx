@@ -77,6 +77,16 @@ export default function SellerNav() {
           >
             판매 승인 보고서
           </Link>
+          <Link
+            href="/seller/points/ledger"
+            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+              isActive('/seller/points/ledger')
+                ? 'border-blue-500 text-gray-900'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            원장 조회
+          </Link>
         </nav>
       </div>
     </div>

@@ -137,3 +137,5 @@ CREATE POLICY "Admins can manage announcements"
 3. 홈페이지 팝업은 모달 형태로 구현
 4. "오늘 하루 보지 않기" 기능으로 사용자 경험 개선
 
+
+

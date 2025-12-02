@@ -292,6 +292,11 @@ export default function InventoryAnalysisPage() {
                   <option value="3months">3개월</option>
                   <option value="6months">6개월</option>
                 </select>
+                <p className="mt-2 text-sm text-gray-500">
+                  {period === '3months' 
+                    ? '3개월: 유효기간이 3개월(90일) 이내인 재고를 분석하며, 최근 3개월 매출 데이터를 기준으로 불용 재고를 판단합니다.'
+                    : '6개월: 유효기간이 6개월(180일) 이내인 재고를 분석하며, 최근 6개월 매출 데이터를 기준으로 불용 재고를 판단합니다.'}
+                </p>
               </div>
 
               <button

@@ -412,6 +412,13 @@ export default function AdminDashboardPage() {
                 <h3 className="text-sm font-medium text-gray-900">포인트 충전 요청</h3>
                 <p className="mt-1 text-sm text-gray-500">사용자들의 포인트 충전 요청 승인/거부</p>
               </Link>
+              <Link
+                href="/admin/ledger"
+                className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <h3 className="text-sm font-medium text-gray-900">원장 조회</h3>
+                <p className="mt-1 text-sm text-gray-500">사용자의 입금 내역과 포인트 충전 내역 확인</p>
+              </Link>
             </div>
           </div>
         </div>

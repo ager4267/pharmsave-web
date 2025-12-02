@@ -275,6 +275,13 @@ export default function SellerProfilePage() {
                 <h3 className="text-sm font-medium text-gray-900">포인트 충전 요청</h3>
                 <p className="mt-1 text-sm text-gray-500">포인트 충전을 요청하고 관리자 승인을 기다립니다</p>
               </Link>
+              <Link
+                href="/seller/points/ledger"
+                className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                <h3 className="text-sm font-medium text-gray-900">원장 조회</h3>
+                <p className="mt-1 text-sm text-gray-500">나의 입금 내역과 포인트 충전 내역을 확인합니다</p>
+              </Link>
             </div>
           </div>
         </div>
