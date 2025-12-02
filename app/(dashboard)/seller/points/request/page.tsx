@@ -19,15 +19,22 @@ interface PointChargeRequest {
   completed_at: string | null
 }
 
+interface AdminProfile {
+  company_name: string
+  bank_name: string | null
+  account_number: string | null
+  phone_number: string | null
+}
+
 export default function PointChargeRequestPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [pointsBalance, setPointsBalance] = useState<number | null>(null)
   const [chargeAmount, setChargeAmount] = useState<string>('')
-  const [description, setDescription] = useState<string>('')
   const [requesting, setRequesting] = useState(false)
   const [requests, setRequests] = useState<PointChargeRequest[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
+  const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -89,6 +96,15 @@ export default function PointChargeRequestPage() {
 
       // 내 포인트 충전 요청 조회
       await fetchRequests()
+
+      // 관리자 계좌 정보 조회
+      const adminResponse = await fetch('/api/admin/get-admin-profile')
+      if (adminResponse.ok) {
+        const adminResult = await adminResponse.json()
+        if (adminResult.success && adminResult.profile) {
+          setAdminProfile(adminResult.profile)
+        }
+      }
     } catch (error) {
       console.error('오류:', error)
     } finally {
@@ -180,7 +196,7 @@ export default function PointChargeRequestPage() {
         body: JSON.stringify({
           userId: user.id,
           amount,
-          description: description || `포인트 충전 요청: ${amount.toLocaleString()}원 = ${amount.toLocaleString()}p`,
+          description: `포인트 충전 요청: ${amount.toLocaleString()}원 = ${amount.toLocaleString()}p`,
         }),
       })
 
@@ -189,7 +205,6 @@ export default function PointChargeRequestPage() {
       if (result.success) {
         alert('포인트 충전 요청이 생성되었습니다.\n관리자 승인 후 포인트가 충전됩니다.')
         setChargeAmount('')
-        setDescription('')
         await fetchRequests()
       } else {
         const errorMsg = result.error || '포인트 충전 요청 생성에 실패했습니다.'
@@ -293,6 +308,42 @@ export default function PointChargeRequestPage() {
           </div>
         </div>
 
+        {/* 관리자 입금 계좌 정보 */}
+        {adminProfile && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">입금 계좌 정보</h2>
+            <div className="space-y-2">
+              <div className="flex items-start">
+                <span className="text-sm font-medium text-gray-700 w-24 flex-shrink-0">예금주:</span>
+                <span className="text-sm text-gray-900">{adminProfile.company_name}</span>
+              </div>
+              {adminProfile.bank_name && (
+                <div className="flex items-start">
+                  <span className="text-sm font-medium text-gray-700 w-24 flex-shrink-0">은행:</span>
+                  <span className="text-sm text-gray-900">{adminProfile.bank_name}</span>
+                </div>
+              )}
+              {adminProfile.account_number && (
+                <div className="flex items-start">
+                  <span className="text-sm font-medium text-gray-700 w-24 flex-shrink-0">계좌번호:</span>
+                  <span className="text-sm text-gray-900 font-mono">{adminProfile.account_number}</span>
+                </div>
+              )}
+              {adminProfile.phone_number && (
+                <div className="flex items-start">
+                  <span className="text-sm font-medium text-gray-700 w-24 flex-shrink-0">연락처:</span>
+                  <span className="text-sm text-gray-900">{adminProfile.phone_number}</span>
+                </div>
+              )}
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <p className="text-xs text-gray-600">
+                  * 위 계좌로 입금하신 후 충전 요청을 해주세요.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 포인트 충전 요청 폼 */}
         <div className="bg-white shadow rounded-lg p-6 mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">새 충전 요청</h2>
@@ -314,18 +365,6 @@ export default function PointChargeRequestPage() {
                   충전될 포인트: {parseInt(chargeAmount).toLocaleString()}p (1원 = 1p)
                 </p>
               )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                요청 사유 (선택사항)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="충전 요청 사유를 입력하세요"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
             </div>
             <button
               onClick={handleRequest}
