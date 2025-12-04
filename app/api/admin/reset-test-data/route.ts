@@ -157,12 +157,12 @@ export async function POST(request: NextRequest) {
       deletionResults.sales_approval_reports = (deletedReports1?.length || 0) + (deletedReports2?.length || 0)
 
       // 6-5. 재판매
-      const { count: resalesCount } = await supabaseAdmin
+      const { data: deletedResales } = await supabaseAdmin
         .from('resales')
         .delete()
         .in('buyer_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.resales = resalesCount || 0
+        .select()
+      deletionResults.resales = deletedResales?.length || 0
 
       // 6-6. 결제 (관련 purchase_request 또는 purchase_order가 관리자와 관련 없는 경우)
       // 먼저 관련 purchase_request와 purchase_order ID 조회
