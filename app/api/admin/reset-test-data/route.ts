@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         .from('point_charge_requests')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.point_charge_requests = chargeRequestsCount || 0
 
       // 6-2. 포인트 거래 내역
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
         .from('point_transactions')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.point_transactions = transactionsCount || 0
 
       // 6-3. 포인트 잔액
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         .from('points')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.points = pointsCount || 0
 
       // 6-4. 판매 승인 보고서 (seller_id 또는 buyer_id가 관리자가 아닌 경우)
@@ -145,14 +145,14 @@ export async function POST(request: NextRequest) {
         .from('sales_approval_reports')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       
       // buyer_id가 관리자가 아닌 경우 삭제 (seller_id는 관리자지만 buyer_id는 아닌 경우)
       const { count: reportsCount2 } = await supabaseAdmin
         .from('sales_approval_reports')
         .delete()
         .in('buyer_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       
       deletionResults.sales_approval_reports = (reportsCount1 || 0) + (reportsCount2 || 0)
 
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
         .from('resales')
         .delete()
         .in('buyer_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.resales = resalesCount || 0
 
       // 6-6. 결제 (관련 purchase_request 또는 purchase_order가 관리자와 관련 없는 경우)
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
         }
         
         const { count: paymentsCount } = await paymentsQuery
-          .select('*', { count: 'exact', head: true })
+          .select('*', { count: 'exact' })
         deletionResults.payments = paymentsCount || 0
       } else {
         deletionResults.payments = 0
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
         .from('purchase_orders')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.purchase_orders = purchaseOrdersCount || 0
 
       // 6-8. 구매 요청
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
         .from('purchase_requests')
         .delete()
         .in('buyer_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.purchase_requests = purchaseRequestsCount || 0
 
       // 6-9. 상품
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
         .from('products')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.products = productsCount || 0
 
       // 6-10. 판매 리스트
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
         .from('sales_lists')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.sales_lists = salesListsCount || 0
 
       // 6-11. 재고 분석
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
         .from('inventory_analyses')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.inventory_analyses = analysesCount || 0
 
       // 6-12. 사용자 프로필 (관리자 제외)
@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
         .from('profiles')
         .delete()
         .neq('role', 'admin')
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
       deletionResults.profiles = profilesCount || 0
 
     } catch (deleteError: any) {
