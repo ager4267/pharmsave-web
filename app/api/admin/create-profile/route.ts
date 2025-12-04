@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             { 
               error: `프로필 생성 실패: auth.users에 사용자가 존재하지 않습니다. 회원가입이 완료되지 않았거나 이메일 확인이 필요할 수 있습니다.`,
-              details: createError.message,
+              details: createError?.message || '알 수 없는 오류',
               suggestion: '회원가입 후 이메일 확인을 완료한 후 다시 시도해주세요.',
               attempts: maxRetries,
               userId: userId
