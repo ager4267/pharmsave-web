@@ -213,8 +213,8 @@ export async function POST(request: NextRequest) {
         console.error('프로필 생성 오류:', createError)
         return NextResponse.json(
           { 
-            error: `프로필 생성 실패: ${createError.message}`,
-            details: createError,
+            error: `프로필 생성 실패: ${createError?.message || '알 수 없는 오류'}`,
+            details: createError || '오류 정보 없음',
             attempt: attempt
           },
           { status: 500 }
