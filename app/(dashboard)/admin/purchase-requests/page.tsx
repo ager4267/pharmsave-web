@@ -402,8 +402,7 @@ export default function AdminPurchaseRequestsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-500">역할</label>
                   <p className="text-gray-900">
-                    {selectedBuyer.role === 'admin' ? '관리자' : 
-                     selectedBuyer.role === 'admin' ? '관리자' : '판매자/구매자'}
+                    {selectedBuyer.role === 'admin' ? '관리자' : '판매자/구매자'}
                   </p>
                 </div>
                 <div>
