@@ -116,45 +116,45 @@ export async function POST(request: NextRequest) {
       }
 
       // 6-1. 포인트 충전 요청
-      const { count: chargeRequestsCount } = await supabaseAdmin
+      const { data: deletedChargeRequests } = await supabaseAdmin
         .from('point_charge_requests')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.point_charge_requests = chargeRequestsCount || 0
+        .select()
+      deletionResults.point_charge_requests = deletedChargeRequests?.length || 0
 
       // 6-2. 포인트 거래 내역
-      const { count: transactionsCount } = await supabaseAdmin
+      const { data: deletedTransactions } = await supabaseAdmin
         .from('point_transactions')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.point_transactions = transactionsCount || 0
+        .select()
+      deletionResults.point_transactions = deletedTransactions?.length || 0
 
       // 6-3. 포인트 잔액
-      const { count: pointsCount } = await supabaseAdmin
+      const { data: deletedPoints } = await supabaseAdmin
         .from('points')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.points = pointsCount || 0
+        .select()
+      deletionResults.points = deletedPoints?.length || 0
 
       // 6-4. 판매 승인 보고서 (seller_id 또는 buyer_id가 관리자가 아닌 경우)
       // 먼저 seller_id가 관리자가 아닌 경우 삭제
-      const { count: reportsCount1 } = await supabaseAdmin
+      const { data: deletedReports1 } = await supabaseAdmin
         .from('sales_approval_reports')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact' })
+        .select()
       
       // buyer_id가 관리자가 아닌 경우 삭제 (seller_id는 관리자지만 buyer_id는 아닌 경우)
-      const { count: reportsCount2 } = await supabaseAdmin
+      const { data: deletedReports2 } = await supabaseAdmin
         .from('sales_approval_reports')
         .delete()
         .in('buyer_id', nonAdminIds)
-        .select('*', { count: 'exact' })
+        .select()
       
-      deletionResults.sales_approval_reports = (reportsCount1 || 0) + (reportsCount2 || 0)
+      deletionResults.sales_approval_reports = (deletedReports1?.length || 0) + (deletedReports2?.length || 0)
 
       // 6-5. 재판매
       const { count: resalesCount } = await supabaseAdmin
@@ -192,60 +192,60 @@ export async function POST(request: NextRequest) {
           paymentsQuery = paymentsQuery.in('purchase_order_id', nonAdminPoIds)
         }
         
-        const { count: paymentsCount } = await paymentsQuery
-          .select('*', { count: 'exact' })
-        deletionResults.payments = paymentsCount || 0
+        const { data: deletedPayments } = await paymentsQuery
+          .select()
+        deletionResults.payments = deletedPayments?.length || 0
       } else {
         deletionResults.payments = 0
       }
 
       // 6-7. 매입 요청
-      const { count: purchaseOrdersCount } = await supabaseAdmin
+      const { data: deletedPurchaseOrders } = await supabaseAdmin
         .from('purchase_orders')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.purchase_orders = purchaseOrdersCount || 0
+        .select()
+      deletionResults.purchase_orders = deletedPurchaseOrders?.length || 0
 
       // 6-8. 구매 요청
-      const { count: purchaseRequestsCount } = await supabaseAdmin
+      const { data: deletedPurchaseRequests } = await supabaseAdmin
         .from('purchase_requests')
         .delete()
         .in('buyer_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.purchase_requests = purchaseRequestsCount || 0
+        .select()
+      deletionResults.purchase_requests = deletedPurchaseRequests?.length || 0
 
       // 6-9. 상품
-      const { count: productsCount } = await supabaseAdmin
+      const { data: deletedProducts } = await supabaseAdmin
         .from('products')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.products = productsCount || 0
+        .select()
+      deletionResults.products = deletedProducts?.length || 0
 
       // 6-10. 판매 리스트
-      const { count: salesListsCount } = await supabaseAdmin
+      const { data: deletedSalesLists } = await supabaseAdmin
         .from('sales_lists')
         .delete()
         .in('seller_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.sales_lists = salesListsCount || 0
+        .select()
+      deletionResults.sales_lists = deletedSalesLists?.length || 0
 
       // 6-11. 재고 분석
-      const { count: analysesCount } = await supabaseAdmin
+      const { data: deletedAnalyses } = await supabaseAdmin
         .from('inventory_analyses')
         .delete()
         .in('user_id', nonAdminIds)
-        .select('*', { count: 'exact' })
-      deletionResults.inventory_analyses = analysesCount || 0
+        .select()
+      deletionResults.inventory_analyses = deletedAnalyses?.length || 0
 
       // 6-12. 사용자 프로필 (관리자 제외)
-      const { count: profilesCount } = await supabaseAdmin
+      const { data: deletedProfiles } = await supabaseAdmin
         .from('profiles')
         .delete()
         .neq('role', 'admin')
-        .select('*', { count: 'exact' })
-      deletionResults.profiles = profilesCount || 0
+        .select()
+      deletionResults.profiles = deletedProfiles?.length || 0
 
     } catch (deleteError: any) {
       console.error('데이터 삭제 중 오류:', deleteError)
