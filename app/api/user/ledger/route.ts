@@ -172,8 +172,7 @@ export async function GET(request: NextRequest) {
       totalRefundPoints,
     })
 
-    // response 객체를 사용하여 JSON 반환 (쿠키 전달을 위해)
-    const jsonResponse = NextResponse.json({
+    return NextResponse.json({
       success: true,
       data: {
         deposits: deposits || [],
