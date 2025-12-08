@@ -7,12 +7,13 @@
  * - 포인트 거래 내역: point_transactions에서 모든 거래 내역 (충전, 사용, 환불)
  */
 
-import { createClient } from '@/lib/supabase/server'
+import { createRouteHandlerClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const response = new NextResponse()
+    const supabase = createRouteHandlerClient(request, response)
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId') // 특정 사용자 필터링 (선택사항)
     const startDate = searchParams.get('startDate')
