@@ -192,13 +192,6 @@ export async function GET(request: NextRequest) {
         },
       },
     })
-    
-    // response의 쿠키를 jsonResponse에 복사
-    response.cookies.getAll().forEach(cookie => {
-      jsonResponse.cookies.set(cookie.name, cookie.value, cookie)
-    })
-    
-    return jsonResponse
   } catch (error: any) {
     console.error('❌ 원장 조회 API 오류:', error)
     return NextResponse.json(
