@@ -61,18 +61,24 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
     const cookies: Array<{ name: string; value: string }> = []
     
     // NextRequest.cookies에서 가져오기
-    const allCookies = request.cookies.getAll()
-    allCookies.forEach(cookie => {
-      cookies.push({ name: cookie.name, value: cookie.value })
-    })
-    
-    // 디버깅: Supabase 관련 쿠키 확인
-    const supabaseCookies = cookies.filter(c => 
-      c.name.includes('sb-') || c.name.includes('supabase')
-    )
-    if (supabaseCookies.length > 0) {
-      console.log('🍪 Supabase 쿠키 발견:', supabaseCookies.map(c => c.name).join(', '))
-      console.log('🍪 전체 쿠키 개수:', cookies.length)
+    try {
+      const allCookies = request.cookies.getAll()
+      allCookies.forEach(cookie => {
+        cookies.push({ name: cookie.name, value: cookie.value })
+      })
+      
+      // 디버깅: Supabase 관련 쿠키 확인
+      const supabaseCookies = cookies.filter(c => 
+        c.name.includes('sb-') || c.name.includes('supabase')
+      )
+      if (supabaseCookies.length > 0) {
+        console.log('🍪 [createRouteHandlerClient] Supabase 쿠키 발견:', supabaseCookies.map(c => c.name).join(', '))
+        console.log('🍪 [createRouteHandlerClient] 전체 쿠키 개수:', cookies.length)
+      } else {
+        console.warn('⚠️ [createRouteHandlerClient] Supabase 쿠키가 없습니다. 전체 쿠키:', cookies.map(c => c.name).join(', '))
+      }
+    } catch (error) {
+      console.error('❌ [createRouteHandlerClient] 쿠키 읽기 오류:', error)
     }
     
     cachedCookies = cookies

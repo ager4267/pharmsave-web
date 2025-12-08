@@ -149,8 +149,21 @@ export default function AdminLedgerPage() {
         params.append('endDate', endDate)
       }
 
-      const response = await fetch(`/api/admin/ledger?${params.toString()}`)
+      // credentials: 'include'를 명시적으로 설정하여 쿠키 전달 보장
+      const response = await fetch(`/api/admin/ledger?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
       const result = await response.json()
+      
+      // 디버깅: 응답 확인
+      if (!result.success) {
+        console.error('❌ [원장조회] API 오류:', result.error)
+      }
 
       if (result.success && result.data) {
         setDeposits(result.data.deposits || [])

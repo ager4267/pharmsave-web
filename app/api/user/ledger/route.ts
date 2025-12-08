@@ -17,6 +17,15 @@ export async function GET(request: NextRequest) {
   const response = new NextResponse()
   
   try {
+    // 디버깅: 쿠키 확인
+    const cookieHeader = request.headers.get('cookie')
+    console.log('🔍 [원장조회] 요청 쿠키:', cookieHeader ? '있음' : '없음')
+    if (cookieHeader) {
+      const cookies = cookieHeader.split(';').map(c => c.trim())
+      const supabaseCookies = cookies.filter(c => c.includes('sb-') || c.includes('supabase'))
+      console.log('🍪 [원장조회] Supabase 쿠키:', supabaseCookies.length > 0 ? supabaseCookies : '없음')
+    }
+    
     const supabase = createRouteHandlerClient(request, response)
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
@@ -24,6 +33,12 @@ export async function GET(request: NextRequest) {
 
     // 사용자 인증 확인
     const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    // 디버깅: 인증 결과 확인
+    console.log('🔐 [원장조회] 인증 결과:', user ? `사용자 있음 (${user.email})` : '사용자 없음')
+    if (userError) {
+      console.error('❌ [원장조회] 인증 오류:', userError.message)
+    }
 
     if (userError || !user) {
       const errorResponse = NextResponse.json(
