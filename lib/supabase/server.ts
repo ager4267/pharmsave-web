@@ -74,6 +74,10 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
       if (supabaseCookies.length > 0) {
         console.log('🍪 [createRouteHandlerClient] Supabase 쿠키 발견:', supabaseCookies.map(c => c.name).join(', '))
         console.log('🍪 [createRouteHandlerClient] 전체 쿠키 개수:', cookies.length)
+        // 쿠키 값의 일부만 로그 (보안)
+        supabaseCookies.forEach(c => {
+          console.log(`🍪 [createRouteHandlerClient] 쿠키 ${c.name}: ${c.value.substring(0, 50)}...`)
+        })
       } else {
         console.warn('⚠️ [createRouteHandlerClient] Supabase 쿠키가 없습니다. 전체 쿠키:', cookies.map(c => c.name).join(', '))
       }
@@ -86,14 +90,38 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
   }
 
   // createServerClient 생성
+  // Supabase SSR은 쿠키를 자동으로 파싱하므로, 우리는 단순히 전달만 하면 됩니다
   const client = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        return getAllCookies()
+        const cookies = getAllCookies()
+        // 디버깅: getAll이 반환하는 쿠키 확인
+        if (cookies.length > 0) {
+          const supabaseCookies = cookies.filter(c => c.name.includes('sb-'))
+          if (supabaseCookies.length > 0) {
+            console.log('🍪 [createRouteHandlerClient] getAll 반환:', supabaseCookies.length, '개 Supabase 쿠키')
+            // 쿠키 값의 일부만 로그 (보안)
+            supabaseCookies.forEach(c => {
+              console.log(`🍪 [createRouteHandlerClient] 쿠키 ${c.name}: 길이=${c.value.length}, 시작=${c.value.substring(0, 20)}...`)
+            })
+          }
+        }
+        return cookies
       },
       setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
+        console.log('🍪 [createRouteHandlerClient] setAll 호출:', cookiesToSet.length, '개 쿠키 설정')
         cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options)
+          // 쿠키 옵션 처리
+          const cookieOptions: any = {}
+          if (options) {
+            if (options.maxAge !== undefined) cookieOptions.maxAge = options.maxAge
+            if (options.domain !== undefined) cookieOptions.domain = options.domain
+            if (options.path !== undefined) cookieOptions.path = options.path
+            if (options.sameSite !== undefined) cookieOptions.sameSite = options.sameSite
+            if (options.secure !== undefined) cookieOptions.secure = options.secure
+            if (options.httpOnly !== undefined) cookieOptions.httpOnly = options.httpOnly
+          }
+          response.cookies.set(name, value, cookieOptions)
         })
         // 쿠키가 설정되면 캐시 무효화
         cachedCookies = null

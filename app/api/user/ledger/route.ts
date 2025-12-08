@@ -31,6 +31,13 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
+    // 세션 먼저 확인 (디버깅)
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    console.log('🔐 [원장조회] 세션 확인:', session ? `세션 있음 (${session.user.email})` : '세션 없음')
+    if (sessionError) {
+      console.error('❌ [원장조회] 세션 오류:', sessionError.message)
+    }
+    
     // 사용자 인증 확인
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     
@@ -38,6 +45,11 @@ export async function GET(request: NextRequest) {
     console.log('🔐 [원장조회] 인증 결과:', user ? `사용자 있음 (${user.email})` : '사용자 없음')
     if (userError) {
       console.error('❌ [원장조회] 인증 오류:', userError.message)
+      console.error('❌ [원장조회] 인증 오류 상세:', {
+        message: userError.message,
+        status: (userError as any).status,
+        name: (userError as any).name
+      })
     }
 
     if (userError || !user) {
