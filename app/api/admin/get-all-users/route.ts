@@ -6,6 +6,10 @@ import { NextResponse } from 'next/server'
  * Service Role 키를 사용하여 RLS 정책 우회
  * GET /api/admin/get-all-users?status=pending|approved|rejected
  */
+
+// 동적 렌더링 강제 (request.url 사용으로 인해 필요)
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     // 환경 변수 확인

@@ -4,6 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
  * 내 포인트 충전 요청 조회 API
  * GET /api/point-charge-requests/my-requests?userId=xxx
  */
+
+// 동적 렌더링 강제 (request.url 사용으로 인해 필요)
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
