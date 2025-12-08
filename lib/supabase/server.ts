@@ -111,17 +111,12 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
       setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
         console.log('🍪 [createRouteHandlerClient] setAll 호출:', cookiesToSet.length, '개 쿠키 설정')
         cookiesToSet.forEach(({ name, value, options }) => {
-          // 쿠키 옵션 처리
-          const cookieOptions: any = {}
+          // NextResponse.cookies.set은 options를 직접 받을 수 있습니다
           if (options) {
-            if (options.maxAge !== undefined) cookieOptions.maxAge = options.maxAge
-            if (options.domain !== undefined) cookieOptions.domain = options.domain
-            if (options.path !== undefined) cookieOptions.path = options.path
-            if (options.sameSite !== undefined) cookieOptions.sameSite = options.sameSite
-            if (options.secure !== undefined) cookieOptions.secure = options.secure
-            if (options.httpOnly !== undefined) cookieOptions.httpOnly = options.httpOnly
+            response.cookies.set(name, value, options)
+          } else {
+            response.cookies.set(name, value)
           }
-          response.cookies.set(name, value, cookieOptions)
         })
         // 쿠키가 설정되면 캐시 무효화
         cachedCookies = null
