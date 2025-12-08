@@ -32,13 +32,33 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    // 관리자 권한 확인
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    // 세션 먼저 확인 (디버깅) - getSession은 쿠키에서 세션을 읽습니다
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    console.log('🔐 [관리자 원장조회] 세션 확인:', session ? `세션 있음 (${session.user.email})` : '세션 없음')
+    if (sessionError) {
+      console.error('❌ [관리자 원장조회] 세션 오류:', sessionError.message)
+    }
+    
+    // 세션이 있으면 세션에서 사용자 정보 사용, 없으면 getUser 시도
+    let user = session?.user || null
+    let userError = sessionError || null
+    
+    if (!user) {
+      // 세션이 없으면 getUser 시도 (JWT 검증)
+      const getUserResult = await supabase.auth.getUser()
+      user = getUserResult.data.user
+      userError = getUserResult.error
+    }
     
     // 디버깅: 인증 결과 확인
     console.log('🔐 [관리자 원장조회] 인증 결과:', user ? `사용자 있음 (${user.email})` : '사용자 없음')
     if (userError) {
       console.error('❌ [관리자 원장조회] 인증 오류:', userError.message)
+      console.error('❌ [관리자 원장조회] 인증 오류 상세:', {
+        message: userError.message,
+        status: (userError as any).status,
+        name: (userError as any).name
+      })
     }
 
     if (userError || !user) {
