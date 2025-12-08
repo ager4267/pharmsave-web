@@ -41,18 +41,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
-    
-    if (!supabase || !supabase.auth) {
-      console.error('❌ [원장조회] Supabase 클라이언트가 초기화되지 않았습니다.')
-      return NextResponse.json(
-        { success: false, error: '서버 설정 오류가 발생했습니다.' },
-        { status: 500 }
-      )
-    }
-    
-    const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get('startDate')
-    const endDate = searchParams.get('endDate')
 
     // 인증 확인 - 작동하는 API와 동일한 방식 사용
     console.log('🔍 [원장조회] getUser 호출 전...')
