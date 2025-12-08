@@ -52,6 +52,7 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
   }
 
   // createServerClient 생성 - Supabase SSR 공식 예제 방식
+  // 참고: https://supabase.com/docs/guides/auth/server-side/creating-a-client
   const client = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
@@ -59,6 +60,8 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
         const cookies: Array<{ name: string; value: string }> = []
         try {
           const allCookies = request.cookies.getAll()
+          console.log('🔍 [createRouteHandlerClient] getAll 호출됨, 원본 쿠키:', allCookies.length, '개')
+          
           allCookies.forEach(cookie => {
             cookies.push({ name: cookie.name, value: cookie.value })
           })
@@ -69,8 +72,12 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
           )
           if (supabaseCookies.length > 0) {
             console.log('🍪 [createRouteHandlerClient] getAll - Supabase 쿠키:', supabaseCookies.length, '개')
+            supabaseCookies.forEach(c => {
+              console.log(`🍪 [createRouteHandlerClient] 쿠키 ${c.name}: 길이=${c.value.length}`)
+            })
           } else {
             console.warn('⚠️ [createRouteHandlerClient] getAll - Supabase 쿠키 없음. 전체:', cookies.length, '개')
+            console.warn('⚠️ [createRouteHandlerClient] 전체 쿠키 이름:', cookies.map(c => c.name).join(', '))
           }
         } catch (error) {
           console.error('❌ [createRouteHandlerClient] getAll 오류:', error)
@@ -81,10 +88,14 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
         console.log('🍪 [createRouteHandlerClient] setAll 호출:', cookiesToSet.length, '개 쿠키 설정')
         cookiesToSet.forEach(({ name, value, options }) => {
           // NextResponse.cookies.set은 options를 직접 받을 수 있습니다
-          if (options) {
-            response.cookies.set(name, value, options)
-          } else {
-            response.cookies.set(name, value)
+          try {
+            if (options) {
+              response.cookies.set(name, value, options)
+            } else {
+              response.cookies.set(name, value)
+            }
+          } catch (error) {
+            console.error(`❌ [createRouteHandlerClient] 쿠키 설정 오류 (${name}):`, error)
           }
         })
       },

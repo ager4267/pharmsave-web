@@ -32,17 +32,32 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
 
     // 세션 먼저 확인 (디버깅)
+    console.log('🔍 [원장조회] getSession 호출 전...')
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     console.log('🔐 [원장조회] 세션 확인:', session ? `세션 있음 (${session.user.email})` : '세션 없음')
     if (sessionError) {
       console.error('❌ [원장조회] 세션 오류:', sessionError.message)
+      console.error('❌ [원장조회] 세션 오류 상세:', {
+        message: sessionError.message,
+        status: (sessionError as any).status,
+        name: (sessionError as any).name
+      })
     }
     
-    // 사용자 인증 확인
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    // 세션이 있으면 세션에서 사용자 정보 사용
+    let user = session?.user || null
+    let userError = sessionError || null
+    
+    // 세션이 없으면 getUser 시도
+    if (!user) {
+      console.log('🔍 [원장조회] 세션 없음, getUser 시도...')
+      const getUserResult = await supabase.auth.getUser()
+      user = getUserResult.data.user
+      userError = getUserResult.error
+    }
     
     // 디버깅: 인증 결과 확인
-    console.log('🔐 [원장조회] 인증 결과:', user ? `사용자 있음 (${user.email})` : '사용자 없음')
+    console.log('🔐 [원장조회] 최종 인증 결과:', user ? `사용자 있음 (${user.email})` : '사용자 없음')
     if (userError) {
       console.error('❌ [원장조회] 인증 오류:', userError.message)
       console.error('❌ [원장조회] 인증 오류 상세:', {
