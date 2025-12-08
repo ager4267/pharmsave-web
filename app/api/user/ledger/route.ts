@@ -10,9 +10,13 @@
 import { createRouteHandlerClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+// 동적 렌더링 강제 (request.url 사용으로 인해 필요)
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
+  const response = new NextResponse()
+  
   try {
-    const response = new NextResponse()
     const supabase = createRouteHandlerClient(request, response)
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
@@ -22,10 +26,15 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: userError } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      return NextResponse.json(
+      const errorResponse = NextResponse.json(
         { success: false, error: '인증이 필요합니다.' },
         { status: 401 }
       )
+      // 쿠키 복사 (세션 갱신을 위해)
+      response.cookies.getAll().forEach(cookie => {
+        errorResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return errorResponse
     }
 
     // 입금 내역 조회 (point_charge_requests에서 승인된 항목)
@@ -137,7 +146,8 @@ export async function GET(request: NextRequest) {
       totalRefundPoints,
     })
 
-    return NextResponse.json({
+    // response 객체를 사용하여 JSON 반환 (쿠키 전달을 위해)
+    const jsonResponse = NextResponse.json({
       success: true,
       data: {
         deposits: deposits || [],
@@ -156,6 +166,13 @@ export async function GET(request: NextRequest) {
         },
       },
     })
+    
+    // response의 쿠키를 jsonResponse에 복사
+    response.cookies.getAll().forEach(cookie => {
+      jsonResponse.cookies.set(cookie.name, cookie.value, cookie)
+    })
+    
+    return jsonResponse
   } catch (error: any) {
     console.error('❌ 원장 조회 API 오류:', error)
     return NextResponse.json(
