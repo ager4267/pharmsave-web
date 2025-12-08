@@ -26,15 +26,21 @@ export async function GET(request: NextRequest) {
       console.log('🍪 [원장조회] Supabase 쿠키:', supabaseCookies.length > 0 ? supabaseCookies : '없음')
     }
     
-    const supabase = createRouteHandlerClient(request, response)
-    const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get('startDate')
-    const endDate = searchParams.get('endDate')
-
-    // 세션 먼저 확인 (디버깅)
     console.log('🔍 [원장조회] createRouteHandlerClient 호출 전...')
     const supabase = createRouteHandlerClient(request, response)
     console.log('✅ [원장조회] createRouteHandlerClient 완료')
+    
+    if (!supabase || !supabase.auth) {
+      console.error('❌ [원장조회] Supabase 클라이언트가 초기화되지 않았습니다.')
+      return NextResponse.json(
+        { success: false, error: '서버 설정 오류가 발생했습니다.' },
+        { status: 500 }
+      )
+    }
+    
+    const { searchParams } = new URL(request.url)
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
     
     if (!supabase || !supabase.auth) {
       console.error('❌ [원장조회] Supabase 클라이언트가 초기화되지 않았습니다.')

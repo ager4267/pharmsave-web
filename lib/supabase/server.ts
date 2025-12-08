@@ -53,14 +53,15 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
 
   // createServerClient 생성 - Supabase SSR 공식 예제 방식
   // 참고: https://supabase.com/docs/guides/auth/server-side/creating-a-client
+  // 중요: getAll은 Supabase SSR이 내부적으로 호출하므로, 항상 최신 쿠키를 반환해야 함
   const client = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        // NextRequest.cookies에서 직접 가져오기
+        // NextRequest.cookies에서 직접 가져오기 (매번 최신 상태)
         const cookies: Array<{ name: string; value: string }> = []
         try {
           const allCookies = request.cookies.getAll()
-          console.log('🔍 [createRouteHandlerClient] getAll 호출됨, 원본 쿠키:', allCookies.length, '개')
+          console.log('🔍 [createRouteHandlerClient] getAll 호출됨! 원본 쿠키:', allCookies.length, '개')
           
           allCookies.forEach(cookie => {
             cookies.push({ name: cookie.name, value: cookie.value })
@@ -73,7 +74,7 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
           if (supabaseCookies.length > 0) {
             console.log('🍪 [createRouteHandlerClient] getAll - Supabase 쿠키:', supabaseCookies.length, '개')
             supabaseCookies.forEach(c => {
-              console.log(`🍪 [createRouteHandlerClient] 쿠키 ${c.name}: 길이=${c.value.length}`)
+              console.log(`🍪 [createRouteHandlerClient] 쿠키 ${c.name}: 길이=${c.value.length}, 시작=${c.value.substring(0, 50)}...`)
             })
           } else {
             console.warn('⚠️ [createRouteHandlerClient] getAll - Supabase 쿠키 없음. 전체:', cookies.length, '개')
@@ -82,6 +83,7 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
         } catch (error) {
           console.error('❌ [createRouteHandlerClient] getAll 오류:', error)
         }
+        console.log('🔍 [createRouteHandlerClient] getAll 반환:', cookies.length, '개 쿠키')
         return cookies
       },
       setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
@@ -102,6 +104,7 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
     },
   } as any)
   
+  console.log('✅ [createRouteHandlerClient] 클라이언트 생성 완료')
   return client
 }
 
