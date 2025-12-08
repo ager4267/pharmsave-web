@@ -57,15 +57,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (userError || !user) {
-      const errorResponse = NextResponse.json(
+      return NextResponse.json(
         { success: false, error: '인증이 필요합니다.' },
         { status: 401 }
       )
-      // 쿠키 복사 (세션 갱신을 위해)
-      response.cookies.getAll().forEach(cookie => {
-        errorResponse.cookies.set(cookie.name, cookie.value)
-      })
-      return errorResponse
     }
 
     // 입금 내역 조회 (point_charge_requests에서 승인된 항목)

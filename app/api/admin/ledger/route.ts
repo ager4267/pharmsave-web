@@ -44,29 +44,13 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
 
     // 인증 확인 - 작동하는 API와 동일한 방식 사용
-    console.log('🔍 [관리자 원장조회] getUser 호출 전...')
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    console.log('🔐 [관리자 원장조회] getUser 완료:', user ? `사용자 있음 (${user.email})` : '사용자 없음')
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     
-    if (userError) {
-      console.error('❌ [관리자 원장조회] 인증 오류:', userError.message)
-      console.error('❌ [관리자 원장조회] 인증 오류 상세:', {
-        message: userError.message,
-        status: (userError as any).status,
-        name: (userError as any).name
-      })
-    }
-
-    if (userError || !user) {
-      const errorResponse = NextResponse.json(
+    if (authError || !user) {
+      return NextResponse.json(
         { success: false, error: '인증이 필요합니다.' },
         { status: 401 }
       )
-      // 쿠키 복사 (세션 갱신을 위해)
-      response.cookies.getAll().forEach(cookie => {
-        errorResponse.cookies.set(cookie.name, cookie.value)
-      })
-      return errorResponse
     }
 
     // 프로필 조회
@@ -77,15 +61,10 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (profileError || !profile || profile.role !== 'admin') {
-      const errorResponse = NextResponse.json(
+      return NextResponse.json(
         { success: false, error: '관리자 권한이 필요합니다.' },
         { status: 403 }
       )
-      // 쿠키 복사 (세션 갱신을 위해)
-      response.cookies.getAll().forEach(cookie => {
-        errorResponse.cookies.set(cookie.name, cookie.value)
-      })
-      return errorResponse
     }
 
     // 입금 내역 조회 (point_charge_requests에서 승인된 항목)
@@ -204,8 +183,7 @@ export async function GET(request: NextRequest) {
       totalRefundPoints,
     })
 
-    // response 객체를 사용하여 JSON 반환 (쿠키 전달을 위해)
-    const jsonResponse = NextResponse.json({
+    return NextResponse.json({
       success: true,
       data: {
         deposits: deposits || [],
@@ -224,13 +202,6 @@ export async function GET(request: NextRequest) {
         },
       },
     })
-    
-    // response의 쿠키를 jsonResponse에 복사
-    response.cookies.getAll().forEach(cookie => {
-      jsonResponse.cookies.set(cookie.name, cookie.value, cookie)
-    })
-    
-    return jsonResponse
   } catch (error: any) {
     console.error('❌ 원장 조회 API 오류:', error)
     return NextResponse.json(
