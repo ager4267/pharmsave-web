@@ -18,7 +18,7 @@
     "reset:test-data": "node scripts/reset-test-data.js"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.1.0",
+    "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.39.0",
     "@tanstack/react-query": "^5.17.0",
     "date-fns": "^3.0.6",
