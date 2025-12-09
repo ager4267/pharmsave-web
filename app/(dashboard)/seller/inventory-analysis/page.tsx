@@ -32,8 +32,32 @@ export default function InventoryAnalysisPage() {
     setError(null)
 
     try {
+      // 파일 유효성 검사
+      if (inventoryFile.size === 0 || salesFile.size === 0) {
+        setError('파일이 비어있습니다. 유효한 파일을 업로드해주세요.')
+        setLoading(false)
+        return
+      }
+
+      // 파일 크기 제한 (100MB)
+      const maxFileSize = 100 * 1024 * 1024 // 100MB
+      if (inventoryFile.size > maxFileSize || salesFile.size > maxFileSize) {
+        setError('파일 크기가 너무 큽니다. 100MB 이하의 파일을 업로드해주세요.')
+        setLoading(false)
+        return
+      }
+
       // 재고 파일 파싱
-      const inventoryBuffer = await inventoryFile.arrayBuffer()
+      let inventoryBuffer: ArrayBuffer
+      try {
+        inventoryBuffer = await inventoryFile.arrayBuffer()
+      } catch (fileError: any) {
+        console.error('재고 파일 읽기 오류:', fileError)
+        setError(`재고 파일을 읽을 수 없습니다: ${fileError.message || '알 수 없는 오류'}`)
+        setLoading(false)
+        return
+      }
+
       const inventoryWorkbook = XLSX.read(inventoryBuffer, { type: 'array' })
       const inventorySheet = inventoryWorkbook.Sheets[inventoryWorkbook.SheetNames[0]]
       const inventoryData = XLSX.utils.sheet_to_json(inventorySheet) as any[]
@@ -72,7 +96,16 @@ export default function InventoryAnalysisPage() {
       }).filter(item => item.product_name && item.quantity > 0) // 제품명과 수량만 필수
 
       // 매출 파일 파싱
-      const salesBuffer = await salesFile.arrayBuffer()
+      let salesBuffer: ArrayBuffer
+      try {
+        salesBuffer = await salesFile.arrayBuffer()
+      } catch (fileError: any) {
+        console.error('매출 파일 읽기 오류:', fileError)
+        setError(`매출 파일을 읽을 수 없습니다: ${fileError.message || '알 수 없는 오류'}`)
+        setLoading(false)
+        return
+      }
+
       const salesWorkbook = XLSX.read(salesBuffer, { type: 'array' })
       const salesSheet = salesWorkbook.Sheets[salesWorkbook.SheetNames[0]]
       const salesData = XLSX.utils.sheet_to_json(salesSheet) as any[]
