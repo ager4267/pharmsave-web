@@ -13,6 +13,42 @@ export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  // 에러 메시지를 한글로 변환하는 함수
+  const translateError = (errorMessage: string): string => {
+    const message = errorMessage.toLowerCase()
+    
+    if (message.includes('invalid login credentials') || 
+        message.includes('invalid credentials') ||
+        message.includes('invalid email or password')) {
+      return '이메일 또는 비밀번호가 올바르지 않습니다.'
+    }
+    
+    if (message.includes('email not confirmed') || 
+        message.includes('email not confirmed')) {
+      return '이메일이 확인되지 않았습니다.'
+    }
+    
+    if (message.includes('too many requests') || 
+        message.includes('rate limit')) {
+      return '너무 많은 로그인 시도가 있었습니다. 잠시 후 다시 시도해주세요.'
+    }
+    
+    if (message.includes('user not found')) {
+      return '등록되지 않은 이메일입니다.'
+    }
+    
+    if (message.includes('network') || message.includes('fetch')) {
+      return '네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.'
+    }
+    
+    if (message.includes('timeout')) {
+      return '요청 시간이 초과되었습니다. 다시 시도해주세요.'
+    }
+    
+    // 기본값: 원본 메시지 반환 (한글이거나 알 수 없는 경우)
+    return errorMessage
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -59,7 +95,7 @@ export default function LoginPage() {
               
               if (retryError) {
                 console.error('❌ 재로그인 오류:', retryError)
-                setError(`로그인 실패: ${retryError.message}`)
+                setError(translateError(retryError.message))
                 setLoading(false)
                 return
               }
@@ -85,7 +121,8 @@ export default function LoginPage() {
             return
           }
         } else {
-          setError(signInError.message)
+          // 에러 메시지를 한글로 변환
+          setError(translateError(signInError.message))
           setLoading(false)
           return
         }
