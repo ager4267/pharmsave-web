@@ -555,7 +555,7 @@ export default function ProductsPage() {
                         <div className="font-medium text-gray-900">
                           {product.product_name}
                         </div>
-                        {product.seller_id === user.id && (
+                        {product.seller_id === profile?.id && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
                             내가 올린 상품
                           </span>
@@ -613,7 +613,7 @@ export default function ProductsPage() {
                         <div className="flex items-center space-x-3">
                           {(() => {
                             // 본인이 올린 상품인 경우
-                            if (product.seller_id === user.id) {
+                            if (product.seller_id === profile?.id) {
                               return (
                                 <span className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-600 text-sm font-medium rounded-md cursor-not-allowed">
                                   내가 올린 상품
@@ -678,7 +678,7 @@ export default function ProductsPage() {
                       <h3 className="font-semibold text-gray-900">
                         {product.product_name}
                       </h3>
-                      {product.seller_id === user.id && (
+                      {product.seller_id === profile?.id && (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
                           내가 올린 상품
                         </span>
@@ -742,7 +742,7 @@ export default function ProductsPage() {
                   <div className="pt-3 border-t border-gray-100">
                     {(() => {
                       // 본인이 올린 상품인 경우
-                      if (product.seller_id === user.id) {
+                      if (product.seller_id === profile?.id) {
                         return (
                           <div className="flex flex-col space-y-2">
                             <span className="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-600 text-sm font-medium rounded-md cursor-not-allowed">
