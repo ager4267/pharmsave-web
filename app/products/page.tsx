@@ -284,14 +284,11 @@ export default function ProductsPage() {
               console.log('📦 상품 데이터 샘플:', result.products[0])
               console.log('📦 상품 데이터 전체 개수:', result.products.length)
               
-              // 본인이 올린 판매 요청 품목 필터링 (seller_id가 현재 사용자 ID와 일치하는 상품 제외)
-              const filteredProducts = result.products.filter((p: Product) => p.seller_id !== user.id)
-              console.log(`🔍 필터링 결과: 전체 ${result.products.length}개 중 ${filteredProducts.length}개 표시 (본인 판매 상품 ${result.products.length - filteredProducts.length}개 제외)`)
-              
-              setProducts(filteredProducts as Product[])
+              // 필터링 제거: 모든 상품 표시 (본인 판매 상품 포함)
+              setProducts(result.products as Product[])
               
               // 구매 요청 상태 조회
-              const productIds = filteredProducts.map((p: Product) => p.id)
+              const productIds = result.products.map((p: Product) => p.id)
               await fetchPurchaseRequests(user.id, productIds)
             } else {
               console.warn('⚠️ 조회된 상품이 없습니다 (빈 배열). 통계:', result.stats)
@@ -331,11 +328,8 @@ export default function ProductsPage() {
 
             console.log('✅ 직접 상품 조회 성공:', productsData?.length || 0, '개')
             
-            // 본인이 올린 판매 요청 품목 필터링 (seller_id가 현재 사용자 ID와 일치하는 상품 제외)
-            const filteredProducts = (productsData || []).filter((p: Product) => p.seller_id !== user.id)
-            console.log(`🔍 필터링 결과: 전체 ${productsData?.length || 0}개 중 ${filteredProducts.length}개 표시 (본인 판매 상품 ${(productsData?.length || 0) - filteredProducts.length}개 제외)`)
-            
-            setProducts(filteredProducts as Product[])
+            // 필터링 제거: 모든 상품 표시 (본인 판매 상품 포함)
+            setProducts((productsData || []) as Product[])
           } catch (directError: any) {
             console.error('❌ 직접 조회도 실패:', directError)
             setError(`상품 조회 실패: ${apiError.message || directError.message || '알 수 없는 오류'}`)
@@ -557,8 +551,15 @@ export default function ProductsPage() {
                       className="grid grid-cols-11 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors min-w-[1100px]"
                     >
                     <div className="col-span-2">
-                      <div className="font-medium text-gray-900">
-                        {product.product_name}
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium text-gray-900">
+                          {product.product_name}
+                        </div>
+                        {product.seller_id === user.id && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                            내가 올린 상품
+                          </span>
+                        )}
                       </div>
                       {product.description && (
                         <div className="text-xs text-gray-500 mt-1 line-clamp-1">
@@ -611,6 +612,15 @@ export default function ProductsPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           {(() => {
+                            // 본인이 올린 상품인 경우
+                            if (product.seller_id === user.id) {
+                              return (
+                                <span className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-600 text-sm font-medium rounded-md cursor-not-allowed">
+                                  내가 올린 상품
+                                </span>
+                              )
+                            }
+                            
                             const purchaseRequest = purchaseRequests.get(product.id)
                             if (purchaseRequest && (purchaseRequest.status === 'pending' || purchaseRequest.status === 'confirmed')) {
                               return (
@@ -664,9 +674,16 @@ export default function ProductsPage() {
                   className="p-4 hover:bg-gray-50 transition-colors"
                 >
                   <div className="mb-3">
-                    <h3 className="font-semibold text-gray-900 mb-1">
-                      {product.product_name}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-900">
+                        {product.product_name}
+                      </h3>
+                      {product.seller_id === user.id && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                          내가 올린 상품
+                        </span>
+                      )}
+                    </div>
                     {product.description && (
                       <p className="text-xs text-gray-500 line-clamp-2">
                         {product.description}
@@ -724,6 +741,26 @@ export default function ProductsPage() {
                   {/* 모바일 구매 요청 버튼 */}
                   <div className="pt-3 border-t border-gray-100">
                     {(() => {
+                      // 본인이 올린 상품인 경우
+                      if (product.seller_id === user.id) {
+                        return (
+                          <div className="flex flex-col space-y-2">
+                            <span className="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-600 text-sm font-medium rounded-md cursor-not-allowed">
+                              내가 올린 상품
+                            </span>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteProduct(product.id, product.product_name)}
+                                disabled={deletingProductId === product.id}
+                                className="w-full inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {deletingProductId === product.id ? '삭제 중...' : '관리자: 상품 삭제'}
+                              </button>
+                            )}
+                          </div>
+                        )
+                      }
+                      
                       const purchaseRequest = purchaseRequests.get(product.id)
                       if (purchaseRequest && (purchaseRequest.status === 'pending' || purchaseRequest.status === 'confirmed')) {
                         return (
