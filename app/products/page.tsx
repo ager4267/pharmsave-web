@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -345,21 +345,30 @@ export default function ProductsPage() {
     // 초기 로드 시 products 상태 초기화
     setProducts([])
     setError(null)
+    
+    // 즉시 데이터 로드 시작
     fetchData()
     
-    // 페이지 포커스 시 데이터 새로고침
+    // 페이지 포커스 시 데이터 새로고침 (5초 이상 경과한 경우만)
+    let lastFetchTime = Date.now()
     const handleFocus = () => {
-      console.log('🔄 페이지 포커스 - 데이터 새로고침')
-      setProducts([]) // 먼저 초기화
-      fetchData()
+      const now = Date.now()
+      if (now - lastFetchTime > 5000) { // 5초 이상 경과한 경우만 새로고침
+        console.log('🔄 페이지 포커스 - 데이터 새로고침')
+        lastFetchTime = now
+        fetchData()
+      }
     }
     
-    // 페이지 가시성 변경 시 새로고침
+    // 페이지 가시성 변경 시 새로고침 (5초 이상 경과한 경우만)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('🔄 페이지 가시성 변경 - 데이터 새로고침')
-        setProducts([]) // 먼저 초기화
-        fetchData()
+        const now = Date.now()
+        if (now - lastFetchTime > 5000) { // 5초 이상 경과한 경우만 새로고침
+          console.log('🔄 페이지 가시성 변경 - 데이터 새로고침')
+          lastFetchTime = now
+          fetchData()
+        }
       }
     }
     

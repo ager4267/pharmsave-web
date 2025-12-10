@@ -258,6 +258,7 @@ export default function Navigation() {
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
               <Link
                 href="/products"
+                prefetch={true}
                 className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
                   pathname === '/products'
                     ? 'border-blue-500 text-blue-600'
@@ -269,6 +270,7 @@ export default function Navigation() {
               {profile.role === 'admin' && (
                 <Link
                   href="/admin/dashboard"
+                  prefetch={true}
                   className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
                     pathname?.startsWith('/admin')
                       ? 'border-blue-500 text-blue-600'

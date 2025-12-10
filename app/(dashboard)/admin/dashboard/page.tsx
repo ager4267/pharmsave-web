@@ -144,6 +144,21 @@ export default function AdminDashboardPage() {
               // 통계 조회 실패해도 계속 진행
             }
             
+            // 의약품 구매 페이지 데이터 프리페치 (백그라운드에서 미리 로드)
+            try {
+              fetch('/api/products/list', {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                cache: 'force-cache', // 캐시 사용
+              }).catch(() => {
+                // 프리페치 실패해도 무시 (사용자 경험에 영향 없음)
+              })
+            } catch (prefetchError) {
+              // 프리페치 오류는 무시
+            }
+            
             clearTimeout(timeoutId)
             setLoading(false)
           } else {
@@ -365,10 +380,19 @@ export default function AdminDashboardPage() {
               </Link>
               <Link
                 href="/admin/products"
+                prefetch={true}
                 className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <h3 className="text-sm font-medium text-gray-900">상품 관리</h3>
                 <p className="mt-1 text-sm text-gray-500">상품 목록 조회 및 관리</p>
+              </Link>
+              <Link
+                href="/products"
+                prefetch={true}
+                className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <h3 className="text-sm font-medium text-gray-900">의약품 구매</h3>
+                <p className="mt-1 text-sm text-gray-500">의약품 구매 페이지로 이동</p>
               </Link>
               <Link
                 href="/admin/sales-lists"
