@@ -283,10 +283,15 @@ export default function ProductsPage() {
             if (result.products.length > 0) {
               console.log('📦 상품 데이터 샘플:', result.products[0])
               console.log('📦 상품 데이터 전체 개수:', result.products.length)
-              setProducts(result.products as Product[])
+              
+              // 본인이 올린 판매 요청 품목 필터링 (seller_id가 현재 사용자 ID와 일치하는 상품 제외)
+              const filteredProducts = result.products.filter((p: Product) => p.seller_id !== user.id)
+              console.log(`🔍 필터링 결과: 전체 ${result.products.length}개 중 ${filteredProducts.length}개 표시 (본인 판매 상품 ${result.products.length - filteredProducts.length}개 제외)`)
+              
+              setProducts(filteredProducts as Product[])
               
               // 구매 요청 상태 조회
-              const productIds = result.products.map((p: Product) => p.id)
+              const productIds = filteredProducts.map((p: Product) => p.id)
               await fetchPurchaseRequests(user.id, productIds)
             } else {
               console.warn('⚠️ 조회된 상품이 없습니다 (빈 배열). 통계:', result.stats)
@@ -325,7 +330,12 @@ export default function ProductsPage() {
             }
 
             console.log('✅ 직접 상품 조회 성공:', productsData?.length || 0, '개')
-            setProducts((productsData || []) as Product[])
+            
+            // 본인이 올린 판매 요청 품목 필터링 (seller_id가 현재 사용자 ID와 일치하는 상품 제외)
+            const filteredProducts = (productsData || []).filter((p: Product) => p.seller_id !== user.id)
+            console.log(`🔍 필터링 결과: 전체 ${productsData?.length || 0}개 중 ${filteredProducts.length}개 표시 (본인 판매 상품 ${(productsData?.length || 0) - filteredProducts.length}개 제외)`)
+            
+            setProducts(filteredProducts as Product[])
           } catch (directError: any) {
             console.error('❌ 직접 조회도 실패:', directError)
             setError(`상품 조회 실패: ${apiError.message || directError.message || '알 수 없는 오류'}`)
