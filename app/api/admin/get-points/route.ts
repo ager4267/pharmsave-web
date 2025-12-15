@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/server'
 
+// 동적 렌더링 강제 (request.cookies 사용으로 인해 필요)
+export const dynamic = 'force-dynamic'
+
 /**
  * 포인트 조회 API
  * POST /api/admin/get-points

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/server'
 
+// 동적 렌더링 강제 (request.cookies 사용으로 인해 필요)
+export const dynamic = 'force-dynamic'
+
 /**
  * 관리자 구매요청 목록 조회 API
  * GET /api/admin/purchase-requests
