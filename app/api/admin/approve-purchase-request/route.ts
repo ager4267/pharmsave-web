@@ -148,6 +148,15 @@ export async function POST(request: Request) {
           newStatus: updateData.status,
         })
         
+        // seller_id 검증
+        if (!product.seller_id) {
+          console.error('❌ 상품의 seller_id가 없습니다:', product)
+          return NextResponse.json(
+            { success: false, error: '상품 정보에 판매자 ID가 없습니다.' },
+            { status: 400 }
+          )
+        }
+
         // 중개 수수료 정보를 purchase_orders 테이블에 저장
         const purchasePrice = totalPrice - commission // 판매자에게 지급할 금액 (총액 - 수수료)
         const totalAmount = totalPrice // 구매자가 지불할 총액
@@ -182,67 +191,70 @@ export async function POST(request: Request) {
             buyerId: purchaseRequest.buyer_id,
             sellerId: product.seller_id,
           })
+        }
 
-          // 판매 승인 보고서 생성
-          try {
-            // 보고서 번호 생성 (SAR-YYYY-XXXX 형식)
-            const year = new Date().getFullYear()
-            const { data: existingReports } = await supabase
-              .from('sales_approval_reports')
-              .select('report_number')
-              .like('report_number', `SAR-${year}-%`)
-              .order('report_number', { ascending: false })
-              .limit(1)
+        // 판매 승인 보고서 생성 (purchaseOrder 생성 성공 여부와 관계없이 생성)
+        // purchaseOrder 생성이 실패해도 보고서는 생성되어야 판매자가 확인할 수 있음
+        try {
+          // 보고서 번호 생성 (SAR-YYYY-XXXX 형식)
+          const year = new Date().getFullYear()
+          const { data: existingReports } = await supabase
+            .from('sales_approval_reports')
+            .select('report_number')
+            .like('report_number', `SAR-${year}-%`)
+            .order('report_number', { ascending: false })
+            .limit(1)
 
-            let sequenceNum = 1
-            if (existingReports && existingReports.length > 0) {
-              const lastReportNum = existingReports[0].report_number
-              const lastSequence = parseInt(lastReportNum.split('-')[2]) || 0
-              sequenceNum = lastSequence + 1
-            }
-
-            const reportNumber = `SAR-${year}-${String(sequenceNum).padStart(4, '0')}`
-
-            // 판매 승인 보고서 생성 (구매요청 승인 시 자동으로 판매자에게 전달)
-            const currentTime = new Date().toISOString()
-            const { data: report, error: reportError } = await supabase
-              .from('sales_approval_reports')
-              .insert({
-                purchase_request_id: purchaseRequestId,
-                purchase_order_id: purchaseOrder?.id,
-                seller_id: product.seller_id,
-                buyer_id: purchaseRequest.buyer_id,
-                product_id: product.id,
-                product_name: product.product_name,
-                quantity: requestedQuantity,
-                unit_price: Number(product.selling_price),
-                total_amount: totalAmount,
-                commission: commission,
-                seller_amount: purchasePrice,
-                report_number: reportNumber,
-                status: 'sent', // 구매요청 승인 시 자동으로 판매자에게 전달
-                sent_at: currentTime, // 전달 시간 기록
-                shipping_address: purchaseRequest.shipping_address || null,
-              })
-              .select()
-              .single()
-
-            if (reportError) {
-              console.error('판매 승인 보고서 생성 오류:', reportError)
-              console.warn('⚠️ 판매 승인 보고서 생성 실패:', reportError.message)
-            } else {
-              console.log('✅ 판매 승인 보고서 생성 및 자동 전달 성공:', {
-                reportId: report?.id,
-                reportNumber: reportNumber,
-                purchaseRequestId: purchaseRequestId,
-                sellerId: product.seller_id,
-                status: 'sent',
-              })
-            }
-          } catch (reportCreateError: any) {
-            console.error('판매 승인 보고서 생성 중 오류:', reportCreateError)
-            // 보고서 생성 실패해도 구매 요청 승인은 유지
+          let sequenceNum = 1
+          if (existingReports && existingReports.length > 0) {
+            const lastReportNum = existingReports[0].report_number
+            const lastSequence = parseInt(lastReportNum.split('-')[2]) || 0
+            sequenceNum = lastSequence + 1
           }
+
+          const reportNumber = `SAR-${year}-${String(sequenceNum).padStart(4, '0')}`
+
+          // 판매 승인 보고서 생성 (구매요청 승인 시 자동으로 판매자에게 전달)
+          const currentTime = new Date().toISOString()
+          const { data: report, error: reportError } = await supabase
+            .from('sales_approval_reports')
+            .insert({
+              purchase_request_id: purchaseRequestId,
+              purchase_order_id: purchaseOrder?.id || null, // purchaseOrder가 없어도 null로 저장
+              seller_id: product.seller_id,
+              buyer_id: purchaseRequest.buyer_id,
+              product_id: product.id,
+              product_name: product.product_name,
+              quantity: requestedQuantity,
+              unit_price: Number(product.selling_price),
+              total_amount: totalAmount,
+              commission: commission,
+              seller_amount: purchasePrice,
+              report_number: reportNumber,
+              status: 'sent', // 구매요청 승인 시 자동으로 판매자에게 전달
+              sent_at: currentTime, // 전달 시간 기록
+              shipping_address: purchaseRequest.shipping_address || null,
+            })
+            .select()
+            .single()
+
+          if (reportError) {
+            console.error('❌ 판매 승인 보고서 생성 오류:', reportError)
+            console.warn('⚠️ 판매 승인 보고서 생성 실패:', reportError.message)
+            // 보고서 생성 실패는 심각한 문제이므로 로그에 명확히 기록
+          } else {
+            console.log('✅ 판매 승인 보고서 생성 및 자동 전달 성공:', {
+              reportId: report?.id,
+              reportNumber: reportNumber,
+              purchaseRequestId: purchaseRequestId,
+              sellerId: product.seller_id,
+              status: 'sent',
+              purchaseOrderId: purchaseOrder?.id || '없음',
+            })
+          }
+        } catch (reportCreateError: any) {
+          console.error('❌ 판매 승인 보고서 생성 중 예외 발생:', reportCreateError)
+          // 보고서 생성 실패해도 구매 요청 승인은 유지
         }
       }
     }
