@@ -99,10 +99,28 @@ export default function SellerSalesApprovalReportsPage() {
       }
 
       if (reportsResult.success) {
-        setReports(reportsResult.reports || [])
-        console.log('✅ 판매 승인 보고서 설정 완료:', reportsResult.reports?.length || 0, '개')
+        const reportsToSet = reportsResult.reports || []
+        setReports(reportsToSet)
+        console.log('✅ 판매 승인 보고서 설정 완료:', reportsToSet.length, '개')
+        
+        // 추가 검증: 실제로 설정된 보고서 확인
+        if (reportsToSet.length === 0) {
+          console.warn('⚠️ 판매 승인 보고서가 0개입니다. 다음을 확인하세요:')
+          console.warn('1. seller_id가 일치하는지:', user.id)
+          console.warn('2. API 응답이 올바른지:', reportsResult)
+          console.warn('3. 데이터베이스에 실제로 저장되었는지 확인 필요')
+        } else {
+          console.log('📊 설정된 보고서 상세:', reportsToSet.map((r: any) => ({
+            id: r.id,
+            reportNumber: r.report_number,
+            sellerId: r.seller_id,
+            status: r.status,
+            productName: r.product_name,
+          })))
+        }
       } else {
         console.error('❌ 판매 승인 보고서 조회 실패:', reportsResult.error)
+        console.error('❌ 전체 응답:', reportsResult)
       }
     } catch (error) {
       console.error('오류:', error)

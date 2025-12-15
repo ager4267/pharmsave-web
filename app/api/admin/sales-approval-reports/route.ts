@@ -143,8 +143,28 @@ export async function GET(request: Request) {
         sellerId: r.seller_id,
         status: r.status,
         sentAt: r.sent_at,
+        createdAt: r.created_at,
       })) || [],
     })
+    
+    // seller_id 필터가 있는 경우 추가 검증
+    if (sellerId && data) {
+      const mismatchedReports = data.filter((r: any) => r.seller_id !== sellerId)
+      if (mismatchedReports.length > 0) {
+        console.error('❌ seller_id 불일치 보고서 발견:', {
+          requestedSellerId: sellerId,
+          mismatchedCount: mismatchedReports.length,
+          mismatchedReports: mismatchedReports.map((r: any) => ({
+            id: r.id,
+            reportNumber: r.report_number,
+            expectedSellerId: sellerId,
+            actualSellerId: r.seller_id,
+          })),
+        })
+      } else {
+        console.log('✅ 모든 보고서의 seller_id가 일치합니다:', sellerId)
+      }
+    }
 
     return NextResponse.json({
       success: true,
