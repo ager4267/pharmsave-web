@@ -143,9 +143,31 @@ export async function POST(request: Request) {
 
     // 관리자에게 구매 요청 알림 전송 (판매자 정보 포함)
     try {
-      const notificationUrl = process.env.NEXT_PUBLIC_SITE_URL 
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/email/purchase-request-notification`
-        : 'http://localhost:3000/api/email/purchase-request-notification'
+      // 동적으로 현재 요청의 origin을 사용하여 URL 생성
+      // Vercel 프로덕션 환경에서도 정상 작동하도록 개선
+      let baseUrl: string
+      
+      if (process.env.NEXT_PUBLIC_SITE_URL) {
+        // 환경 변수에 명시적으로 설정된 경우 사용
+        baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+      } else if (process.env.VERCEL_URL) {
+        // Vercel 자동 제공 환경 변수 사용
+        baseUrl = `https://${process.env.VERCEL_URL}`
+      } else {
+        // request headers에서 origin 추출 (프로덕션/개발 모두 지원)
+        const origin = request.headers.get('origin') || request.headers.get('host')
+        if (origin) {
+          // origin이 'https://' 또는 'http://'로 시작하지 않으면 추가
+          baseUrl = origin.startsWith('http') ? origin : `https://${origin}`
+        } else {
+          // fallback: 로컬 개발 환경
+          baseUrl = 'http://localhost:3000'
+        }
+      }
+      
+      const notificationUrl = `${baseUrl}/api/email/purchase-request-notification`
+      
+      console.log('📧 이메일 알림 전송 시도:', { notificationUrl, baseUrl })
       
       await fetch(notificationUrl, {
         method: 'POST',

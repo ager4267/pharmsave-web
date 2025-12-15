@@ -47,19 +47,27 @@ export async function POST(request: Request) {
       }
     }
 
-    // 구매 요청 조회 (products의 seller_id 포함)
+    // 구매 요청 조회 (product_id만 먼저 조회)
     const { data: purchaseRequest, error: purchaseRequestError } = await supabase
       .from('purchase_requests')
-      .select('*, products:products!purchase_requests_product_id_fkey(id, product_name, seller_id, quantity, selling_price, status)')
+      .select('*')
       .eq('id', purchaseRequestId)
       .single()
 
     if (purchaseRequestError || !purchaseRequest) {
+      console.error('❌ 구매 요청 조회 오류:', purchaseRequestError)
       return NextResponse.json(
         { success: false, error: '구매 요청을 찾을 수 없습니다.' },
         { status: 404 }
       )
     }
+
+    console.log('✅ 구매 요청 조회 성공:', {
+      purchaseRequestId: purchaseRequest.id,
+      productId: purchaseRequest.product_id,
+      buyerId: purchaseRequest.buyer_id,
+      status: purchaseRequest.status,
+    })
 
     // 상태 업데이트
     const { error: updateError } = await supabase
@@ -81,136 +89,153 @@ export async function POST(request: Request) {
 
     // 승인된 경우 상품 수량 감소 및 상태 업데이트, 중개 수수료 계산
     if (status === 'approved') {
-      // products가 배열인 경우 첫 번째 요소 사용, 객체인 경우 그대로 사용
-      const product = Array.isArray(purchaseRequest.products) 
-        ? purchaseRequest.products[0] 
-        : purchaseRequest.products
+      // 근본적인 구조 개선: product_id로 직접 products 테이블에서 조회
+      // 조인 결과에 의존하지 않고 직접 조회하여 안정성 확보
+      if (!purchaseRequest.product_id) {
+        console.error('❌ 구매 요청에 product_id가 없습니다:', purchaseRequest)
+        return NextResponse.json(
+          { success: false, error: '구매 요청에 상품 정보가 없습니다.' },
+          { status: 400 }
+        )
+      }
+
+      // products 테이블에서 직접 조회 (seller_id 포함)
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .select('id, product_name, seller_id, quantity, selling_price, status')
+        .eq('id', purchaseRequest.product_id)
+        .single()
+
+      if (productError || !product) {
+        console.error('❌ 상품 조회 오류:', productError)
+        return NextResponse.json(
+          { success: false, error: '상품 정보를 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+
+      console.log('✅ 상품 정보 조회 성공:', {
+        productId: product.id,
+        productName: product.product_name,
+        sellerId: product.seller_id,
+        quantity: product.quantity,
+        sellingPrice: product.selling_price,
+        status: product.status,
+      })
+
+      // seller_id 검증 강화: 판매자 프로필 존재 확인
+      if (!product.seller_id) {
+        console.error('❌ 상품에 seller_id가 없습니다:', product)
+        return NextResponse.json(
+          { success: false, error: '상품 정보에 판매자 ID가 없습니다.' },
+          { status: 400 }
+        )
+      }
+
+      // 판매자 프로필 존재 확인
+      const { data: sellerProfile, error: sellerProfileError } = await supabase
+        .from('profiles')
+        .select('id, email, company_name, role')
+        .eq('id', product.seller_id)
+        .maybeSingle()
+
+      if (sellerProfileError) {
+        console.error('❌ 판매자 프로필 조회 오류:', sellerProfileError)
+        return NextResponse.json(
+          { success: false, error: '판매자 정보를 확인할 수 없습니다.' },
+          { status: 500 }
+        )
+      }
+
+      if (!sellerProfile) {
+        console.error('❌ 판매자 프로필이 존재하지 않습니다:', product.seller_id)
+        return NextResponse.json(
+          { success: false, error: '판매자 프로필이 존재하지 않습니다.' },
+          { status: 404 }
+        )
+      }
+
+      console.log('✅ 판매자 프로필 확인:', {
+        sellerId: sellerProfile.id,
+        email: sellerProfile.email,
+        companyName: sellerProfile.company_name,
+        role: sellerProfile.role,
+      })
+
+      const requestedQuantity = purchaseRequest.quantity
+      const currentQuantity = product.quantity
       
-      if (product) {
-        console.log('📦 상품 정보 확인:', {
-          productId: product.id,
-          productName: product.product_name,
-          sellerId: product.seller_id,
-          quantity: product.quantity,
-          sellingPrice: product.selling_price,
-          productData: product, // 전체 상품 데이터 로깅
-        })
-        
-        // seller_id가 없는 경우 products 테이블에서 직접 조회
-        if (!product.seller_id) {
-          console.warn('⚠️ product.seller_id가 없습니다. products 테이블에서 직접 조회합니다.')
-          const { data: productData, error: productError } = await supabase
-            .from('products')
-            .select('id, product_name, seller_id, quantity, selling_price, status')
-            .eq('id', product.id)
-            .single()
-          
-          if (productError || !productData) {
-            console.error('❌ 상품 조회 오류:', productError)
-            return NextResponse.json(
-              { success: false, error: '상품 정보를 찾을 수 없습니다.' },
-              { status: 404 }
-            )
-          }
-          
-          // product 객체 업데이트
-          product.seller_id = productData.seller_id
-          product.quantity = productData.quantity
-          product.selling_price = productData.selling_price
-          product.status = productData.status
-          
-          console.log('✅ 상품 정보 업데이트:', {
-            productId: product.id,
-            sellerId: product.seller_id,
-          })
-        }
-        const requestedQuantity = purchaseRequest.quantity
-        const currentQuantity = product.quantity
-        
-        // 수량 검증
-        if (requestedQuantity > currentQuantity) {
-          return NextResponse.json(
-            { success: false, error: `구매 수량(${requestedQuantity})이 현재 재고(${currentQuantity})를 초과합니다.` },
-            { status: 400 }
-          )
-        }
-        
-        // seller_id 검증 (purchase_orders 생성 전에 수행)
-        if (!product.seller_id) {
-          console.error('❌ 상품의 seller_id가 없습니다:', product)
-          return NextResponse.json(
-            { success: false, error: '상품 정보에 판매자 ID가 없습니다.' },
-            { status: 400 }
-          )
-        }
-        
-        // 중개 수수료 계산 (매출 금액의 5%)
-        // 변수 스코프 명확화: 블록 외부에서 정의하여 이후 로직에서 사용
-        const totalPrice = Number(purchaseRequest.total_price)
-        const commission = totalPrice * 0.05 // 5% 수수료
-        const purchasePrice = totalPrice - commission // 판매자에게 지급할 금액 (총액 - 수수료)
-        const totalAmount = totalPrice // 구매자가 지불할 총액
-        
-        console.log('💰 중개 수수료 계산:', {
-          totalPrice,
-          commission,
-          commissionRate: '5%',
-          purchasePrice,
-          totalAmount,
-        })
-        
-        // 수량 감소
-        const newQuantity = currentQuantity - requestedQuantity
-        
-        // 수량이 0 이하가 되면 status를 'sold'로 변경하고 quantity는 1로 유지
-        // (CHECK 제약조건 quantity > 0 때문에)
-        // 아니면 'active' 유지하고 실제 수량으로 업데이트
-        const updateData: any = {
-          updated_at: new Date().toISOString(),
-        }
-        
-        if (newQuantity <= 0) {
-          // 수량이 모두 판매되면 status를 'sold'로 변경
-          // quantity는 CHECK 제약조건 때문에 1로 유지
-          updateData.status = 'sold'
-          updateData.quantity = 1
-        } else {
-          // 수량이 남아있으면 active 상태 유지하고 실제 수량으로 업데이트
-          updateData.status = 'active'
-          updateData.quantity = newQuantity
-        }
-        
-        const { error: productUpdateError } = await supabase
-          .from('products')
-          .update(updateData)
-          .eq('id', product.id)
+      // 수량 검증
+      if (requestedQuantity > currentQuantity) {
+        return NextResponse.json(
+          { success: false, error: `구매 수량(${requestedQuantity})이 현재 재고(${currentQuantity})를 초과합니다.` },
+          { status: 400 }
+        )
+      }
 
-        if (productUpdateError) {
-          console.error('❌ 상품 수량/상태 업데이트 오류:', productUpdateError)
-          return NextResponse.json({
-            success: false,
-            error: '상품 수량/상태 업데이트에 실패했습니다.',
-            details: productUpdateError.message,
-            purchaseRequestId: purchaseRequestId,
-          }, { status: 500 })
-        }
+      // 중개 수수료 계산 (매출 금액의 5%)
+      const totalPrice = Number(purchaseRequest.total_price)
+      const commission = totalPrice * 0.05 // 5% 수수료
+      const purchasePrice = totalPrice - commission // 판매자에게 지급할 금액 (총액 - 수수료)
+      const totalAmount = totalPrice // 구매자가 지불할 총액
+      
+      console.log('💰 중개 수수료 계산:', {
+        totalPrice,
+        commission,
+        commissionRate: '5%',
+        purchasePrice,
+        totalAmount,
+      })
+      
+      // 수량 감소
+      const newQuantity = currentQuantity - requestedQuantity
+      
+      // 수량이 0 이하가 되면 status를 'sold'로 변경하고 quantity는 1로 유지
+      // (CHECK 제약조건 quantity > 0 때문에)
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      }
+      
+      if (newQuantity <= 0) {
+        // 수량이 모두 판매되면 status를 'sold'로 변경
+        // quantity는 CHECK 제약조건 때문에 1로 유지
+        updateData.status = 'sold'
+        updateData.quantity = 1
+      } else {
+        // 수량이 남아있으면 active 상태 유지하고 실제 수량으로 업데이트
+        updateData.status = 'active'
+        updateData.quantity = newQuantity
+      }
+      
+      const { error: productUpdateError } = await supabase
+        .from('products')
+        .update(updateData)
+        .eq('id', product.id)
 
-        console.log('✅ 상품 수량 감소 및 상태 업데이트:', {
-          productId: product.id,
-          requestedQuantity,
-          previousQuantity: currentQuantity,
-          newQuantity,
-          newStatus: updateData.status,
-        })
+      if (productUpdateError) {
+        console.error('❌ 상품 수량/상태 업데이트 오류:', productUpdateError)
+        return NextResponse.json({
+          success: false,
+          error: '상품 수량/상태 업데이트에 실패했습니다.',
+          details: productUpdateError.message,
+          purchaseRequestId: purchaseRequestId,
+        }, { status: 500 })
+      }
 
-        // 중개 수수료 정보를 purchase_orders 테이블에 저장
-        
-        // 에러 수집을 위한 배열
-        const errors: string[] = []
-        const warnings: string[] = []
+      console.log('✅ 상품 수량 감소 및 상태 업데이트:', {
+        productId: product.id,
+        requestedQuantity,
+        previousQuantity: currentQuantity,
+        newQuantity,
+        newStatus: updateData.status,
+      })
 
-        // 중개 수수료 정보를 purchase_orders 테이블에 저장
-        const { data: purchaseOrder, error: orderError } = await supabase
+      // 에러 수집을 위한 배열
+      const errors: string[] = []
+      const warnings: string[] = []
+
+      // 중개 수수료 정보를 purchase_orders 테이블에 저장
+      const { data: purchaseOrder, error: orderError } = await supabase
           .from('purchase_orders')
           .insert({
             purchase_request_id: purchaseRequestId,
@@ -226,101 +251,101 @@ export async function POST(request: Request) {
           .select()
           .single()
 
-        if (orderError) {
-          console.error('❌ 구매 주문 생성 오류:', orderError)
-          console.error('❌ 오류 상세:', {
-            message: orderError.message,
-            details: orderError.details,
-            hint: orderError.hint,
-            code: orderError.code,
-          })
-          errors.push(`구매 주문 생성 실패: ${orderError.message}`)
-        } else if (purchaseOrder) {
-          console.log('✅ 중개 수수료 정보 저장 성공:', {
-            purchaseOrderId: purchaseOrder.id,
-            purchaseRequestId: purchaseRequestId,
-            totalPrice,
-            commission,
-            purchasePrice,
-            buyerId: purchaseRequest.buyer_id,
-            sellerId: product.seller_id,
-          })
-        } else {
-          errors.push('구매 주문 생성되었지만 데이터가 반환되지 않음')
+      if (orderError) {
+        console.error('❌ 구매 주문 생성 오류:', orderError)
+        console.error('❌ 오류 상세:', {
+          message: orderError.message,
+          details: orderError.details,
+          hint: orderError.hint,
+          code: orderError.code,
+        })
+        errors.push(`구매 주문 생성 실패: ${orderError.message}`)
+      } else if (purchaseOrder) {
+        console.log('✅ 중개 수수료 정보 저장 성공:', {
+          purchaseOrderId: purchaseOrder.id,
+          purchaseRequestId: purchaseRequestId,
+          totalPrice,
+          commission,
+          purchasePrice,
+          buyerId: purchaseRequest.buyer_id,
+          sellerId: product.seller_id,
+        })
+      } else {
+        errors.push('구매 주문 생성되었지만 데이터가 반환되지 않음')
+      }
+
+      // 판매 승인 보고서 생성
+      // purchaseOrder 생성 실패 시에도 보고서는 생성하되, purchase_order_id는 null로 저장
+      try {
+        // 보고서 번호 생성 (SAR-YYYY-XXXX 형식)
+        const year = new Date().getFullYear()
+        const { data: existingReports } = await supabase
+          .from('sales_approval_reports')
+          .select('report_number')
+          .like('report_number', `SAR-${year}-%`)
+          .order('report_number', { ascending: false })
+          .limit(1)
+
+        let sequenceNum = 1
+        if (existingReports && existingReports.length > 0) {
+          const lastReportNum = existingReports[0].report_number
+          const lastSequence = parseInt(lastReportNum.split('-')[2]) || 0
+          sequenceNum = lastSequence + 1
         }
 
-        // 판매 승인 보고서 생성
-        // purchaseOrder 생성 실패 시에도 보고서는 생성하되, purchase_order_id는 null로 저장
-        try {
-          // 보고서 번호 생성 (SAR-YYYY-XXXX 형식)
-          const year = new Date().getFullYear()
-          const { data: existingReports } = await supabase
+        const reportNumber = `SAR-${year}-${String(sequenceNum).padStart(4, '0')}`
+
+        // 판매 승인 보고서 생성 (구매요청 승인 시 자동으로 판매자에게 전달)
+        const currentTime = new Date().toISOString()
+        
+        // seller_id 최종 확인 및 로깅
+        console.log('📝 판매 승인 보고서 생성 준비:', {
+          sellerId: product.seller_id,
+          buyerId: purchaseRequest.buyer_id,
+          productId: product.id,
+          productName: product.product_name,
+          reportNumber: reportNumber,
+          purchaseRequestId: purchaseRequestId,
+          purchaseOrderId: purchaseOrder?.id || null,
+        })
+        
+        // seller_id가 유효한 UUID인지 확인
+        if (!product.seller_id || typeof product.seller_id !== 'string') {
+          console.error('❌ seller_id가 유효하지 않습니다:', product.seller_id)
+          errors.push(`판매자 ID가 유효하지 않습니다: ${product.seller_id}`)
+        } else {
+          const { data: report, error: reportError } = await supabase
             .from('sales_approval_reports')
-            .select('report_number')
-            .like('report_number', `SAR-${year}-%`)
-            .order('report_number', { ascending: false })
-            .limit(1)
+            .insert({
+              purchase_request_id: purchaseRequestId,
+              purchase_order_id: purchaseOrder?.id || null, // purchaseOrder가 없어도 null로 저장
+              seller_id: product.seller_id,
+              buyer_id: purchaseRequest.buyer_id,
+              product_id: product.id,
+              product_name: product.product_name,
+              quantity: requestedQuantity,
+              unit_price: Number(product.selling_price),
+              total_amount: totalAmount,
+              commission: commission,
+              seller_amount: purchasePrice,
+              report_number: reportNumber,
+              status: 'sent', // 구매요청 승인 시 자동으로 판매자에게 전달
+              sent_at: currentTime, // 전달 시간 기록
+              shipping_address: purchaseRequest.shipping_address || null,
+            })
+            .select()
+            .single()
 
-          let sequenceNum = 1
-          if (existingReports && existingReports.length > 0) {
-            const lastReportNum = existingReports[0].report_number
-            const lastSequence = parseInt(lastReportNum.split('-')[2]) || 0
-            sequenceNum = lastSequence + 1
-          }
-
-          const reportNumber = `SAR-${year}-${String(sequenceNum).padStart(4, '0')}`
-
-          // 판매 승인 보고서 생성 (구매요청 승인 시 자동으로 판매자에게 전달)
-          const currentTime = new Date().toISOString()
-          
-          // seller_id 최종 확인 및 로깅
-          console.log('📝 판매 승인 보고서 생성 준비:', {
-            sellerId: product.seller_id,
-            buyerId: purchaseRequest.buyer_id,
-            productId: product.id,
-            productName: product.product_name,
-            reportNumber: reportNumber,
-            purchaseRequestId: purchaseRequestId,
-            purchaseOrderId: purchaseOrder?.id || null,
-          })
-          
-          // seller_id가 유효한 UUID인지 확인
-          if (!product.seller_id || typeof product.seller_id !== 'string') {
-            console.error('❌ seller_id가 유효하지 않습니다:', product.seller_id)
-            errors.push(`판매자 ID가 유효하지 않습니다: ${product.seller_id}`)
-          } else {
-            const { data: report, error: reportError } = await supabase
-              .from('sales_approval_reports')
-              .insert({
-                purchase_request_id: purchaseRequestId,
-                purchase_order_id: purchaseOrder?.id || null, // purchaseOrder가 없어도 null로 저장
-                seller_id: product.seller_id,
-                buyer_id: purchaseRequest.buyer_id,
-                product_id: product.id,
-                product_name: product.product_name,
-                quantity: requestedQuantity,
-                unit_price: Number(product.selling_price),
-                total_amount: totalAmount,
-                commission: commission,
-                seller_amount: purchasePrice,
-                report_number: reportNumber,
-                status: 'sent', // 구매요청 승인 시 자동으로 판매자에게 전달
-                sent_at: currentTime, // 전달 시간 기록
-                shipping_address: purchaseRequest.shipping_address || null,
-              })
-              .select()
-              .single()
-
-            if (reportError) {
-              console.error('❌ 판매 승인 보고서 생성 오류:', reportError)
-              console.error('❌ 오류 상세:', {
-                message: reportError.message,
-                details: reportError.details,
-                hint: reportError.hint,
-                code: reportError.code,
-              })
-              errors.push(`판매 승인 보고서 생성 실패: ${reportError.message}`)
-            } else if (report) {
+          if (reportError) {
+            console.error('❌ 판매 승인 보고서 생성 오류:', reportError)
+            console.error('❌ 오류 상세:', {
+              message: reportError.message,
+              details: reportError.details,
+              hint: reportError.hint,
+              code: reportError.code,
+            })
+            errors.push(`판매 승인 보고서 생성 실패: ${reportError.message}`)
+          } else if (report) {
             console.log('✅ 판매 승인 보고서 생성 및 자동 전달 성공:', {
               reportId: report.id,
               reportNumber: reportNumber,
@@ -378,47 +403,46 @@ export async function POST(request: Request) {
                 })
               }
             }
-            } else {
-              console.error('❌ 판매 승인 보고서 생성되었지만 데이터가 반환되지 않음')
-            }
+          } else {
+            console.error('❌ 판매 승인 보고서 생성되었지만 데이터가 반환되지 않음')
           }
-        } catch (reportCreateError: any) {
-          console.error('❌ 판매 승인 보고서 생성 중 예외 발생:', reportCreateError)
-          console.error('❌ 예외 상세:', {
-            message: reportCreateError.message,
-            stack: reportCreateError.stack,
-            name: reportCreateError.name,
-          })
-          errors.push(`판매 승인 보고서 생성 중 예외: ${reportCreateError.message}`)
         }
+      } catch (reportCreateError: any) {
+        console.error('❌ 판매 승인 보고서 생성 중 예외 발생:', reportCreateError)
+        console.error('❌ 예외 상세:', {
+          message: reportCreateError.message,
+          stack: reportCreateError.stack,
+          name: reportCreateError.name,
+        })
+        errors.push(`판매 승인 보고서 생성 중 예외: ${reportCreateError.message}`)
+      }
 
-        // 에러가 있는 경우 사용자에게 명확히 전달
-        if (errors.length > 0) {
-          // purchase_orders 생성 실패는 경고로 처리 (보고서는 생성됨)
-          const criticalErrors = errors.filter(e => !e.includes('구매 주문 생성'))
-          const nonCriticalErrors = errors.filter(e => e.includes('구매 주문 생성'))
-          
-          if (criticalErrors.length > 0) {
-            // 중요한 에러가 있는 경우 실패로 처리
-            return NextResponse.json({
-              success: false,
-              error: '구매 요청 승인 중 일부 작업이 실패했습니다.',
-              details: criticalErrors,
-              warnings: nonCriticalErrors.length > 0 ? nonCriticalErrors : undefined,
-              purchaseRequestId: purchaseRequestId,
-            }, { status: 500 })
-          } else if (nonCriticalErrors.length > 0) {
-            // purchase_orders 생성 실패만 있는 경우 경고로 처리
-            return NextResponse.json({
-              success: true,
-              message: `구매 요청이 승인되었습니다. 다만 일부 정보 저장에 실패했습니다.`,
-              warnings: nonCriticalErrors,
-              purchaseRequestId: purchaseRequestId,
-            }, { status: 200 })
+      // 에러가 있는 경우 사용자에게 명확히 전달
+      if (errors.length > 0) {
+        // purchase_orders 생성 실패는 경고로 처리 (보고서는 생성됨)
+        const criticalErrors = errors.filter(e => !e.includes('구매 주문 생성'))
+        const nonCriticalErrors = errors.filter(e => e.includes('구매 주문 생성'))
+        
+        if (criticalErrors.length > 0) {
+          // 중요한 에러가 있는 경우 실패로 처리
+          return NextResponse.json({
+            success: false,
+            error: '구매 요청 승인 중 일부 작업이 실패했습니다.',
+            details: criticalErrors,
+            warnings: nonCriticalErrors.length > 0 ? nonCriticalErrors : undefined,
+            purchaseRequestId: purchaseRequestId,
+          }, { status: 500 })
+        } else if (nonCriticalErrors.length > 0) {
+          // purchase_orders 생성 실패만 있는 경우 경고로 처리
+          return NextResponse.json({
+            success: true,
+            message: `구매 요청이 승인되었습니다. 다만 일부 정보 저장에 실패했습니다.`,
+            warnings: nonCriticalErrors,
+            purchaseRequestId: purchaseRequestId,
+          }, { status: 200 })
           }
         }
       }
-    }
 
     return NextResponse.json({
       success: true,
