@@ -45,11 +45,28 @@ export default function SellerSalesApprovalReportsPage() {
       }
 
       // 판매 승인 보고서 조회 (판매자 본인의 보고서만)
+      console.log('🔍 판매 승인 보고서 조회 시작 - seller_id:', user.id)
       const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}`)
       const reportsResult = await reportsResponse.json()
 
+      console.log('📋 판매 승인 보고서 조회 결과:', {
+        success: reportsResult.success,
+        count: reportsResult.reports?.length || 0,
+        reports: reportsResult.reports?.map((r: any) => ({
+          id: r.id,
+          reportNumber: r.report_number,
+          sellerId: r.seller_id,
+          status: r.status,
+          productName: r.product_name,
+        })) || [],
+        error: reportsResult.error,
+      })
+
       if (reportsResult.success) {
         setReports(reportsResult.reports || [])
+        console.log('✅ 판매 승인 보고서 설정 완료:', reportsResult.reports?.length || 0, '개')
+      } else {
+        console.error('❌ 판매 승인 보고서 조회 실패:', reportsResult.error)
       }
     } catch (error) {
       console.error('오류:', error)

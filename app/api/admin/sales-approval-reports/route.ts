@@ -60,6 +60,24 @@ export async function GET(request: Request) {
     if (sellerId) {
       query = query.eq('seller_id', sellerId)
       console.log('🔍 판매 승인 보고서 조회 - sellerId 필터:', sellerId)
+      
+      // 디버깅: seller_id로 조회 가능한 모든 보고서 확인
+      const { data: allReports, error: allError } = await supabase
+        .from('sales_approval_reports')
+        .select('id, report_number, seller_id, status, created_at')
+        .eq('seller_id', sellerId)
+      
+      console.log('🔍 seller_id로 조회된 모든 보고서:', {
+        count: allReports?.length || 0,
+        reports: allReports?.map((r: any) => ({
+          id: r.id,
+          reportNumber: r.report_number,
+          sellerId: r.seller_id,
+          status: r.status,
+          createdAt: r.created_at,
+        })) || [],
+        error: allError,
+      })
     }
 
     if (status) {

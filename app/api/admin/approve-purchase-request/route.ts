@@ -47,10 +47,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // 구매 요청 조회
+    // 구매 요청 조회 (products의 seller_id 포함)
     const { data: purchaseRequest, error: purchaseRequestError } = await supabase
       .from('purchase_requests')
-      .select('*, products:products!purchase_requests_product_id_fkey(*)')
+      .select('*, products:products!purchase_requests_product_id_fkey(id, product_name, seller_id, quantity, selling_price, status)')
       .eq('id', purchaseRequestId)
       .single()
 
@@ -93,7 +93,37 @@ export async function POST(request: Request) {
           sellerId: product.seller_id,
           quantity: product.quantity,
           sellingPrice: product.selling_price,
+          productData: product, // 전체 상품 데이터 로깅
         })
+        
+        // seller_id가 없는 경우 products 테이블에서 직접 조회
+        if (!product.seller_id) {
+          console.warn('⚠️ product.seller_id가 없습니다. products 테이블에서 직접 조회합니다.')
+          const { data: productData, error: productError } = await supabase
+            .from('products')
+            .select('id, product_name, seller_id, quantity, selling_price, status')
+            .eq('id', product.id)
+            .single()
+          
+          if (productError || !productData) {
+            console.error('❌ 상품 조회 오류:', productError)
+            return NextResponse.json(
+              { success: false, error: '상품 정보를 찾을 수 없습니다.' },
+              { status: 404 }
+            )
+          }
+          
+          // product 객체 업데이트
+          product.seller_id = productData.seller_id
+          product.quantity = productData.quantity
+          product.selling_price = productData.selling_price
+          product.status = productData.status
+          
+          console.log('✅ 상품 정보 업데이트:', {
+            productId: product.id,
+            sellerId: product.seller_id,
+          })
+        }
         const requestedQuantity = purchaseRequest.quantity
         const currentQuantity = product.quantity
         
