@@ -91,18 +91,25 @@ export async function GET(request: Request) {
         error: allError,
       })
       
-      // seller_id가 실제로 존재하는지 확인
+      // seller_id가 실제로 존재하는지 확인 (maybeSingle 사용 - 없어도 오류 발생 안 함)
       const { data: sellerProfile, error: profileError } = await supabase
         .from('profiles')
         .select('id, email, company_name, role')
         .eq('id', sellerId)
-        .single()
+        .maybeSingle()
       
-      console.log('🔍 판매자 프로필 확인:', {
-        sellerId: sellerId,
-        profile: sellerProfile,
-        error: profileError,
-      })
+      if (profileError) {
+        console.error('❌ 판매자 프로필 조회 오류:', profileError)
+      } else if (!sellerProfile) {
+        console.warn('⚠️ 판매자 프로필이 존재하지 않습니다:', sellerId)
+      } else {
+        console.log('✅ 판매자 프로필 확인:', {
+          sellerId: sellerId,
+          email: sellerProfile.email,
+          companyName: sellerProfile.company_name,
+          role: sellerProfile.role,
+        })
+      }
     }
 
     if (status) {

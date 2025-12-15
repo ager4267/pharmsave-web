@@ -341,15 +341,17 @@ export async function POST(request: Request) {
               })
             }
             
-            // 보고서 생성 후 즉시 조회하여 실제로 저장되었는지 확인
+            // 보고서 생성 후 즉시 조회하여 실제로 저장되었는지 확인 (maybeSingle 사용)
             const { data: verifyReport, error: verifyError } = await supabase
               .from('sales_approval_reports')
               .select('id, report_number, seller_id, status, sent_at')
               .eq('id', report.id)
-              .single()
+              .maybeSingle()
             
             if (verifyError) {
               console.error('❌ 생성된 보고서 확인 실패:', verifyError)
+            } else if (!verifyReport) {
+              console.warn('⚠️ 생성된 보고서를 찾을 수 없습니다:', report.id)
             } else if (verifyReport) {
               console.log('✅ 생성된 보고서 확인 성공:', {
                 reportId: verifyReport.id,
