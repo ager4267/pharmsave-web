@@ -335,6 +335,38 @@ export async function POST(request: Request) {
             })
             .select()
             .single()
+            
+            // 생성 직후 즉시 검증: 실제로 저장되었는지 확인
+            console.log('🔍 판매승인보고서 생성 직후 검증 시작...')
+            const { data: immediateCheck, error: immediateError } = await supabase
+              .from('sales_approval_reports')
+              .select('id, report_number, seller_id, buyer_id, status, sent_at, created_at')
+              .eq('id', report.id)
+              .maybeSingle()
+            
+            if (immediateError) {
+              console.error('❌ 즉시 검증 실패:', immediateError)
+            } else if (!immediateCheck) {
+              console.error('❌ 즉시 검증: 보고서를 찾을 수 없음!', report.id)
+            } else {
+              console.log('✅ 즉시 검증 성공:', {
+                reportId: immediateCheck.id,
+                sellerId: immediateCheck.seller_id,
+                expectedSellerId: product.seller_id,
+                match: immediateCheck.seller_id === product.seller_id,
+                status: immediateCheck.status,
+                sentAt: immediateCheck.sent_at,
+              })
+              
+              // seller_id 불일치 시 경고
+              if (immediateCheck.seller_id !== product.seller_id) {
+                console.error('❌ CRITICAL: seller_id 불일치!', {
+                  expected: product.seller_id,
+                  actual: immediateCheck.seller_id,
+                  reportId: immediateCheck.id,
+                })
+              }
+            }
 
           if (reportError) {
             console.error('❌ 판매 승인 보고서 생성 오류:', reportError)
