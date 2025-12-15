@@ -165,6 +165,61 @@ export async function GET(request: Request) {
         console.log('✅ 모든 보고서의 seller_id가 일치합니다:', sellerId)
       }
     }
+    
+    // 🔍 CRITICAL: seller_id로 조회했는데 결과가 없으면, 최근 생성된 모든 보고서 확인
+    if (sellerId && (!data || data.length === 0)) {
+      console.warn('⚠️ seller_id로 조회했는데 결과가 없습니다. 최근 생성된 모든 보고서를 확인합니다...')
+      const { data: allRecentReports, error: allRecentError } = await supabase
+        .from('sales_approval_reports')
+        .select('id, report_number, seller_id, buyer_id, status, created_at, sent_at, purchase_request_id')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      
+      console.log('🔍 최근 생성된 모든 판매승인보고서 (seller_id 필터 없이):', {
+        count: allRecentReports?.length || 0,
+        reports: allRecentReports?.map((r: any) => ({
+          id: r.id,
+          reportNumber: r.report_number,
+          sellerId: r.seller_id,
+          buyerId: r.buyer_id,
+          status: r.status,
+          createdAt: r.created_at,
+          sentAt: r.sent_at,
+          purchaseRequestId: r.purchase_request_id,
+        })) || [],
+        error: allRecentError,
+      })
+      
+      if (allRecentReports && allRecentReports.length > 0) {
+        const matchedBySeller = allRecentReports.filter((r: any) => r.seller_id === sellerId)
+        console.log('🔍 최근 보고서 중 seller_id 일치하는 것:', {
+          requestedSellerId: sellerId,
+          totalRecentReports: allRecentReports.length,
+          matchedCount: matchedBySeller.length,
+          matchedReports: matchedBySeller.map((r: any) => ({
+            id: r.id,
+            reportNumber: r.report_number,
+            sellerId: r.seller_id,
+            status: r.status,
+            createdAt: r.created_at,
+          })),
+        })
+        
+        if (matchedBySeller.length === 0) {
+          console.error('❌ CRITICAL: 최근 보고서는 있지만 seller_id가 일치하지 않습니다!', {
+            requestedSellerId: sellerId,
+            foundSellerIds: [...new Set(allRecentReports.map((r: any) => r.seller_id))],
+            allSellerIds: allRecentReports.map((r: any) => ({
+              reportNumber: r.report_number,
+              sellerId: r.seller_id,
+              createdAt: r.created_at,
+            })),
+          })
+        }
+      } else {
+        console.error('❌ CRITICAL: 데이터베이스에 판매승인보고서가 전혀 없습니다!')
+      }
+    }
 
     return NextResponse.json({
       success: true,
