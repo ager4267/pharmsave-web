@@ -272,38 +272,55 @@ export async function POST(request: Request) {
 
           // 판매 승인 보고서 생성 (구매요청 승인 시 자동으로 판매자에게 전달)
           const currentTime = new Date().toISOString()
-          const { data: report, error: reportError } = await supabase
-            .from('sales_approval_reports')
-            .insert({
-              purchase_request_id: purchaseRequestId,
-              purchase_order_id: purchaseOrder?.id || null, // purchaseOrder가 없어도 null로 저장
-              seller_id: product.seller_id,
-              buyer_id: purchaseRequest.buyer_id,
-              product_id: product.id,
-              product_name: product.product_name,
-              quantity: requestedQuantity,
-              unit_price: Number(product.selling_price),
-              total_amount: totalAmount,
-              commission: commission,
-              seller_amount: purchasePrice,
-              report_number: reportNumber,
-              status: 'sent', // 구매요청 승인 시 자동으로 판매자에게 전달
-              sent_at: currentTime, // 전달 시간 기록
-              shipping_address: purchaseRequest.shipping_address || null,
-            })
-            .select()
-            .single()
+          
+          // seller_id 최종 확인 및 로깅
+          console.log('📝 판매 승인 보고서 생성 준비:', {
+            sellerId: product.seller_id,
+            buyerId: purchaseRequest.buyer_id,
+            productId: product.id,
+            productName: product.product_name,
+            reportNumber: reportNumber,
+            purchaseRequestId: purchaseRequestId,
+            purchaseOrderId: purchaseOrder?.id || null,
+          })
+          
+          // seller_id가 유효한 UUID인지 확인
+          if (!product.seller_id || typeof product.seller_id !== 'string') {
+            console.error('❌ seller_id가 유효하지 않습니다:', product.seller_id)
+            errors.push(`판매자 ID가 유효하지 않습니다: ${product.seller_id}`)
+          } else {
+            const { data: report, error: reportError } = await supabase
+              .from('sales_approval_reports')
+              .insert({
+                purchase_request_id: purchaseRequestId,
+                purchase_order_id: purchaseOrder?.id || null, // purchaseOrder가 없어도 null로 저장
+                seller_id: product.seller_id,
+                buyer_id: purchaseRequest.buyer_id,
+                product_id: product.id,
+                product_name: product.product_name,
+                quantity: requestedQuantity,
+                unit_price: Number(product.selling_price),
+                total_amount: totalAmount,
+                commission: commission,
+                seller_amount: purchasePrice,
+                report_number: reportNumber,
+                status: 'sent', // 구매요청 승인 시 자동으로 판매자에게 전달
+                sent_at: currentTime, // 전달 시간 기록
+                shipping_address: purchaseRequest.shipping_address || null,
+              })
+              .select()
+              .single()
 
-          if (reportError) {
-            console.error('❌ 판매 승인 보고서 생성 오류:', reportError)
-            console.error('❌ 오류 상세:', {
-              message: reportError.message,
-              details: reportError.details,
-              hint: reportError.hint,
-              code: reportError.code,
-            })
-            errors.push(`판매 승인 보고서 생성 실패: ${reportError.message}`)
-          } else if (report) {
+            if (reportError) {
+              console.error('❌ 판매 승인 보고서 생성 오류:', reportError)
+              console.error('❌ 오류 상세:', {
+                message: reportError.message,
+                details: reportError.details,
+                hint: reportError.hint,
+                code: reportError.code,
+              })
+              errors.push(`판매 승인 보고서 생성 실패: ${reportError.message}`)
+            } else if (report) {
             console.log('✅ 판매 승인 보고서 생성 및 자동 전달 성공:', {
               reportId: report.id,
               reportNumber: reportNumber,
@@ -359,8 +376,9 @@ export async function POST(request: Request) {
                 })
               }
             }
-          } else {
-            console.error('❌ 판매 승인 보고서 생성되었지만 데이터가 반환되지 않음')
+            } else {
+              console.error('❌ 판매 승인 보고서 생성되었지만 데이터가 반환되지 않음')
+            }
           }
         } catch (reportCreateError: any) {
           console.error('❌ 판매 승인 보고서 생성 중 예외 발생:', reportCreateError)

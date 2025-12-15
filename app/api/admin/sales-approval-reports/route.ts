@@ -61,13 +61,24 @@ export async function GET(request: Request) {
       query = query.eq('seller_id', sellerId)
       console.log('🔍 판매 승인 보고서 조회 - sellerId 필터:', sellerId)
       
-      // 디버깅: seller_id로 조회 가능한 모든 보고서 확인
+      // seller_id 유효성 확인
+      if (!sellerId || typeof sellerId !== 'string') {
+        console.error('❌ seller_id가 유효하지 않습니다:', sellerId)
+        return NextResponse.json(
+          { success: false, error: '판매자 ID가 유효하지 않습니다.' },
+          { status: 400 }
+        )
+      }
+      
+      // 디버깅: seller_id로 조회 가능한 모든 보고서 확인 (Service Role로 직접 조회)
       const { data: allReports, error: allError } = await supabase
         .from('sales_approval_reports')
-        .select('id, report_number, seller_id, status, created_at')
+        .select('id, report_number, seller_id, status, created_at, sent_at')
         .eq('seller_id', sellerId)
+        .order('created_at', { ascending: false })
       
-      console.log('🔍 seller_id로 조회된 모든 보고서:', {
+      console.log('🔍 seller_id로 조회된 모든 보고서 (Service Role):', {
+        sellerId: sellerId,
         count: allReports?.length || 0,
         reports: allReports?.map((r: any) => ({
           id: r.id,
@@ -75,8 +86,22 @@ export async function GET(request: Request) {
           sellerId: r.seller_id,
           status: r.status,
           createdAt: r.created_at,
+          sentAt: r.sent_at,
         })) || [],
         error: allError,
+      })
+      
+      // seller_id가 실제로 존재하는지 확인
+      const { data: sellerProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email, company_name, role')
+        .eq('id', sellerId)
+        .single()
+      
+      console.log('🔍 판매자 프로필 확인:', {
+        sellerId: sellerId,
+        profile: sellerProfile,
+        error: profileError,
       })
     }
 

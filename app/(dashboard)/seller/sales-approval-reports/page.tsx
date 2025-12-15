@@ -45,22 +45,56 @@ export default function SellerSalesApprovalReportsPage() {
       }
 
       // 판매 승인 보고서 조회 (판매자 본인의 보고서만)
-      console.log('🔍 판매 승인 보고서 조회 시작 - seller_id:', user.id)
+      console.log('🔍 판매 승인 보고서 조회 시작:', {
+        userId: user.id,
+        userEmail: user.email,
+        timestamp: new Date().toISOString(),
+      })
+      
       const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}`)
+      
+      if (!reportsResponse.ok) {
+        console.error('❌ 판매 승인 보고서 조회 HTTP 오류:', {
+          status: reportsResponse.status,
+          statusText: reportsResponse.statusText,
+        })
+      }
+      
       const reportsResult = await reportsResponse.json()
 
       console.log('📋 판매 승인 보고서 조회 결과:', {
         success: reportsResult.success,
         count: reportsResult.reports?.length || 0,
+        userId: user.id,
         reports: reportsResult.reports?.map((r: any) => ({
           id: r.id,
           reportNumber: r.report_number,
           sellerId: r.seller_id,
+          buyerId: r.buyer_id,
           status: r.status,
           productName: r.product_name,
+          createdAt: r.created_at,
+          sentAt: r.sent_at,
         })) || [],
         error: reportsResult.error,
+        fullResponse: reportsResult,
       })
+      
+      // seller_id 매칭 확인
+      if (reportsResult.reports && reportsResult.reports.length > 0) {
+        const mismatchedReports = reportsResult.reports.filter((r: any) => r.seller_id !== user.id)
+        if (mismatchedReports.length > 0) {
+          console.error('❌ seller_id 불일치 보고서 발견:', {
+            userId: user.id,
+            mismatchedReports: mismatchedReports.map((r: any) => ({
+              id: r.id,
+              reportNumber: r.report_number,
+              expectedSellerId: user.id,
+              actualSellerId: r.seller_id,
+            })),
+          })
+        }
+      }
 
       if (reportsResult.success) {
         setReports(reportsResult.reports || [])
