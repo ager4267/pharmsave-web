@@ -51,6 +51,8 @@ export default function SellerSalesApprovalReportsPage() {
         timestamp: new Date().toISOString(),
       })
       
+      // 판매승인보고서 조회 (status 필터 없이 모든 상태 조회)
+      // 대시보드에서는 'sent' 상태만 카운트하지만, 페이지에서는 모든 상태를 보여줌
       const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}`)
       
       if (!reportsResponse.ok) {

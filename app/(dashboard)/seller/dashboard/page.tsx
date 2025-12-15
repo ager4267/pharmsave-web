@@ -125,18 +125,44 @@ export default function SellerDashboardPage() {
         .eq('user_id', user.id)
 
       // 5. 판매 승인 보고서 통계 조회 (전달됨 상태인 보고서 수)
-      const { data: reports } = await supabase
-        .from('sales_approval_reports')
-        .select('id')
-        .eq('seller_id', user.id)
-        .eq('status', 'sent')
+      // API를 통해 조회하여 판매승인보고서 페이지와 동일한 로직 사용
+      let pendingReportsCount = 0
+      try {
+        const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}&status=sent`)
+        if (reportsResponse.ok) {
+          const reportsResult = await reportsResponse.json()
+          if (reportsResult.success) {
+            pendingReportsCount = reportsResult.reports?.length || 0
+            console.log('✅ 판매 승인 보고서 카운트 조회 성공:', {
+              sellerId: user.id,
+              count: pendingReportsCount,
+            })
+          } else {
+            console.error('❌ 판매 승인 보고서 카운트 조회 실패:', reportsResult.error)
+          }
+        } else {
+          console.error('❌ 판매 승인 보고서 카운트 조회 HTTP 오류:', {
+            status: reportsResponse.status,
+            statusText: reportsResponse.statusText,
+          })
+        }
+      } catch (apiError) {
+        console.error('❌ 판매 승인 보고서 카운트 조회 API 오류:', apiError)
+        // API 실패 시 클라이언트 사이드에서 직접 조회 (fallback)
+        const { data: reports } = await supabase
+          .from('sales_approval_reports')
+          .select('id')
+          .eq('seller_id', user.id)
+          .eq('status', 'sent')
+        pendingReportsCount = reports?.length || 0
+      }
 
       setStats({
         totalSalesLists,
         pendingSalesLists,
         approvedSalesLists,
         totalAnalyses: analyses?.length || 0,
-        pendingReports: reports?.length || 0,
+        pendingReports: pendingReportsCount,
       })
     } catch (error) {
       console.error('❌ 오류:', error)
