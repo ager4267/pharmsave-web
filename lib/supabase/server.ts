@@ -42,6 +42,7 @@ export async function createClient() {
 
 // Route Handler용 클라이언트 (NextRequest/NextResponse 사용)
 // Supabase SSR 공식 예제 기반
+// 참고: https://supabase.com/docs/guides/auth/server-side/creating-a-client
 export function createRouteHandlerClient(request: NextRequest, response: NextResponse) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -52,59 +53,82 @@ export function createRouteHandlerClient(request: NextRequest, response: NextRes
   }
 
   // createServerClient 생성 - Supabase SSR 공식 예제 방식
-  // 참고: https://supabase.com/docs/guides/auth/server-side/creating-a-client
   // 중요: getAll은 Supabase SSR이 내부적으로 호출하므로, 항상 최신 쿠키를 반환해야 함
+  // 빌드 타임 평가 방지: request와 response를 클로저로 캡처하여 런타임에만 접근
+  const requestRef = request
+  const responseRef = response
+  
   const client = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         // NextRequest.cookies에서 직접 가져오기 (매번 최신 상태)
+        // 빌드 타임 평가 방지: requestRef는 런타임에만 접근 가능
         const cookies: Array<{ name: string; value: string }> = []
         try {
-          const allCookies = request.cookies.getAll()
-          console.log('🔍 [createRouteHandlerClient] getAll 호출됨! 원본 쿠키:', allCookies.length, '개')
-          
-          allCookies.forEach(cookie => {
-            cookies.push({ name: cookie.name, value: cookie.value })
-          })
-          
-          // 디버깅: Supabase 관련 쿠키 확인
-          const supabaseCookies = cookies.filter(c => 
-            c.name.includes('sb-') || c.name.includes('supabase')
-          )
-          if (supabaseCookies.length > 0) {
-            console.log('🍪 [createRouteHandlerClient] getAll - Supabase 쿠키:', supabaseCookies.length, '개')
-            supabaseCookies.forEach(c => {
-              console.log(`🍪 [createRouteHandlerClient] 쿠키 ${c.name}: 길이=${c.value.length}, 시작=${c.value.substring(0, 50)}...`)
+          if (requestRef && requestRef.cookies) {
+            const allCookies = requestRef.cookies.getAll()
+            console.log('🔍 [createRouteHandlerClient] getAll 호출됨! 원본 쿠키:', allCookies.length, '개')
+            
+            allCookies.forEach(cookie => {
+              cookies.push({ name: cookie.name, value: cookie.value })
             })
-          } else {
-            console.warn('⚠️ [createRouteHandlerClient] getAll - Supabase 쿠키 없음. 전체:', cookies.length, '개')
-            console.warn('⚠️ [createRouteHandlerClient] 전체 쿠키 이름:', cookies.map(c => c.name).join(', '))
+            
+            // 디버깅: Supabase 관련 쿠키 확인
+            const supabaseCookies = cookies.filter(c => 
+              c.name.includes('sb-') || c.name.includes('supabase')
+            )
+            if (supabaseCookies.length > 0) {
+              console.log('🍪 [createRouteHandlerClient] getAll - Supabase 쿠키:', supabaseCookies.length, '개')
+            } else {
+              console.warn('⚠️ [createRouteHandlerClient] getAll - Supabase 쿠키 없음. 전체:', cookies.length, '개')
+            }
           }
-        } catch (error) {
-          console.error('❌ [createRouteHandlerClient] getAll 오류:', error)
+        } catch (error: any) {
+          // 빌드 타임 오류는 무시 (런타임에만 실행되어야 함)
+          if (error?.digest === 'DYNAMIC_SERVER_USAGE' || 
+              error?.description?.includes('rendered statically') ||
+              error?.message?.includes('rendered statically')) {
+            // 빌드 타임 평가 오류는 무시 (정상적인 동작)
+            // 빌드 타임에는 빈 배열 반환, 런타임에는 정상 작동
+            return []
+          } else {
+            console.error('❌ [createRouteHandlerClient] getAll 오류:', error)
+          }
         }
-        console.log('🔍 [createRouteHandlerClient] getAll 반환:', cookies.length, '개 쿠키')
         return cookies
       },
       setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
-        console.log('🍪 [createRouteHandlerClient] setAll 호출:', cookiesToSet.length, '개 쿠키 설정')
-        cookiesToSet.forEach(({ name, value, options }) => {
-          // NextResponse.cookies.set은 options를 직접 받을 수 있습니다
-          try {
-            if (options) {
-              response.cookies.set(name, value, options)
-            } else {
-              response.cookies.set(name, value)
-            }
-          } catch (error) {
-            console.error(`❌ [createRouteHandlerClient] 쿠키 설정 오류 (${name}):`, error)
+        try {
+          if (responseRef && responseRef.cookies) {
+            console.log('🍪 [createRouteHandlerClient] setAll 호출:', cookiesToSet.length, '개 쿠키 설정')
+            cookiesToSet.forEach(({ name, value, options }) => {
+              // NextResponse.cookies.set은 options를 직접 받을 수 있습니다
+              try {
+                if (options) {
+                  responseRef.cookies.set(name, value, options)
+                } else {
+                  responseRef.cookies.set(name, value)
+                }
+              } catch (error) {
+                console.error(`❌ [createRouteHandlerClient] 쿠키 설정 오류 (${name}):`, error)
+              }
+            })
           }
-        })
+        } catch (error: any) {
+          // 빌드 타임 오류는 무시
+          if (error?.digest === 'DYNAMIC_SERVER_USAGE' || 
+              error?.description?.includes('rendered statically') ||
+              error?.message?.includes('rendered statically')) {
+            // 빌드 타임 평가 오류는 무시 (정상적인 동작)
+            return
+          } else {
+            console.error('❌ [createRouteHandlerClient] setAll 오류:', error)
+          }
+        }
       },
     },
   } as any)
   
-  console.log('✅ [createRouteHandlerClient] 클라이언트 생성 완료')
   return client
 }
 
