@@ -203,7 +203,8 @@ export async function POST(request: Request) {
 
             const reportNumber = `SAR-${year}-${String(sequenceNum).padStart(4, '0')}`
 
-            // 판매 승인 보고서 생성
+            // 판매 승인 보고서 생성 (구매요청 승인 시 자동으로 판매자에게 전달)
+            const currentTime = new Date().toISOString()
             const { data: report, error: reportError } = await supabase
               .from('sales_approval_reports')
               .insert({
@@ -219,7 +220,8 @@ export async function POST(request: Request) {
                 commission: commission,
                 seller_amount: purchasePrice,
                 report_number: reportNumber,
-                status: 'created',
+                status: 'sent', // 구매요청 승인 시 자동으로 판매자에게 전달
+                sent_at: currentTime, // 전달 시간 기록
                 shipping_address: purchaseRequest.shipping_address || null,
               })
               .select()
@@ -229,10 +231,12 @@ export async function POST(request: Request) {
               console.error('판매 승인 보고서 생성 오류:', reportError)
               console.warn('⚠️ 판매 승인 보고서 생성 실패:', reportError.message)
             } else {
-              console.log('✅ 판매 승인 보고서 생성 성공:', {
+              console.log('✅ 판매 승인 보고서 생성 및 자동 전달 성공:', {
                 reportId: report?.id,
                 reportNumber: reportNumber,
                 purchaseRequestId: purchaseRequestId,
+                sellerId: product.seller_id,
+                status: 'sent',
               })
             }
           } catch (reportCreateError: any) {
