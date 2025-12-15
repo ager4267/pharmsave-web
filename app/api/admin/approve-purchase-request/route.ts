@@ -81,8 +81,19 @@ export async function POST(request: Request) {
 
     // 승인된 경우 상품 수량 감소 및 상태 업데이트, 중개 수수료 계산
     if (status === 'approved') {
-      const product = purchaseRequest.products
+      // products가 배열인 경우 첫 번째 요소 사용, 객체인 경우 그대로 사용
+      const product = Array.isArray(purchaseRequest.products) 
+        ? purchaseRequest.products[0] 
+        : purchaseRequest.products
+      
       if (product) {
+        console.log('📦 상품 정보 확인:', {
+          productId: product.id,
+          productName: product.product_name,
+          sellerId: product.seller_id,
+          quantity: product.quantity,
+          sellingPrice: product.selling_price,
+        })
         const requestedQuantity = purchaseRequest.quantity
         const currentQuantity = product.quantity
         
@@ -240,20 +251,81 @@ export async function POST(request: Request) {
 
           if (reportError) {
             console.error('❌ 판매 승인 보고서 생성 오류:', reportError)
+            console.error('❌ 오류 상세:', {
+              message: reportError.message,
+              details: reportError.details,
+              hint: reportError.hint,
+              code: reportError.code,
+            })
             console.warn('⚠️ 판매 승인 보고서 생성 실패:', reportError.message)
             // 보고서 생성 실패는 심각한 문제이므로 로그에 명확히 기록
-          } else {
+            // 하지만 구매 요청 승인은 유지
+          } else if (report) {
             console.log('✅ 판매 승인 보고서 생성 및 자동 전달 성공:', {
-              reportId: report?.id,
+              reportId: report.id,
               reportNumber: reportNumber,
               purchaseRequestId: purchaseRequestId,
               sellerId: product.seller_id,
               status: 'sent',
               purchaseOrderId: purchaseOrder?.id || '없음',
+              createdAt: report.created_at,
+              sentAt: report.sent_at,
             })
+            
+            // 생성된 보고서가 실제로 seller_id와 일치하는지 확인
+            if (report.seller_id !== product.seller_id) {
+              console.error('❌ 판매 승인 보고서의 seller_id 불일치:', {
+                expected: product.seller_id,
+                actual: report.seller_id,
+                reportId: report.id,
+              })
+            }
+            
+            // 보고서 생성 후 즉시 조회하여 실제로 저장되었는지 확인
+            const { data: verifyReport, error: verifyError } = await supabase
+              .from('sales_approval_reports')
+              .select('id, report_number, seller_id, status, sent_at')
+              .eq('id', report.id)
+              .single()
+            
+            if (verifyError) {
+              console.error('❌ 생성된 보고서 확인 실패:', verifyError)
+            } else if (verifyReport) {
+              console.log('✅ 생성된 보고서 확인 성공:', {
+                reportId: verifyReport.id,
+                reportNumber: verifyReport.report_number,
+                sellerId: verifyReport.seller_id,
+                status: verifyReport.status,
+                sentAt: verifyReport.sent_at,
+              })
+              
+              // seller_id로 조회하여 판매자가 볼 수 있는지 확인
+              const { data: sellerReports, error: sellerError } = await supabase
+                .from('sales_approval_reports')
+                .select('id, report_number, seller_id, status')
+                .eq('seller_id', product.seller_id)
+                .eq('id', report.id)
+              
+              if (sellerError) {
+                console.error('❌ 판매자별 보고서 조회 실패:', sellerError)
+              } else {
+                console.log('✅ 판매자별 보고서 조회 성공:', {
+                  sellerId: product.seller_id,
+                  found: sellerReports && sellerReports.length > 0,
+                  count: sellerReports?.length || 0,
+                })
+              }
+            }
+          } else {
+            console.error('❌ 판매 승인 보고서 생성되었지만 데이터가 반환되지 않음')
           }
         } catch (reportCreateError: any) {
           console.error('❌ 판매 승인 보고서 생성 중 예외 발생:', reportCreateError)
+          console.error('❌ 예외 상세:', {
+            message: reportCreateError.message,
+            stack: reportCreateError.stack,
+            name: reportCreateError.name,
+          })
           // 보고서 생성 실패해도 구매 요청 승인은 유지
         }
       }

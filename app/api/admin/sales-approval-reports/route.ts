@@ -59,21 +59,42 @@ export async function GET(request: Request) {
 
     if (sellerId) {
       query = query.eq('seller_id', sellerId)
+      console.log('🔍 판매 승인 보고서 조회 - sellerId 필터:', sellerId)
     }
 
     if (status) {
       query = query.eq('status', status)
+      console.log('🔍 판매 승인 보고서 조회 - status 필터:', status)
     }
 
     const { data, error } = await query
 
     if (error) {
-      console.error('판매 승인 보고서 조회 오류:', error)
+      console.error('❌ 판매 승인 보고서 조회 오류:', error)
+      console.error('❌ 오류 상세:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
       return NextResponse.json(
         { success: false, error: '판매 승인 보고서 조회에 실패했습니다.' },
         { status: 500 }
       )
     }
+
+    console.log('✅ 판매 승인 보고서 조회 성공:', {
+      sellerId: sellerId || '전체',
+      status: status || '전체',
+      count: data?.length || 0,
+      reports: data?.map((r: any) => ({
+        id: r.id,
+        reportNumber: r.report_number,
+        sellerId: r.seller_id,
+        status: r.status,
+        sentAt: r.sent_at,
+      })) || [],
+    })
 
     return NextResponse.json({
       success: true,
