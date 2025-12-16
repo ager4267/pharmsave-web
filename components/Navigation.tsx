@@ -26,7 +26,7 @@ export default function Navigation() {
     }
 
     try {
-      // 사용자 확인 (간단하게)
+      // 사용자 확인
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       
       if (userError || !user) {
@@ -35,78 +35,46 @@ export default function Navigation() {
         return
       }
 
-      // API 호출 시도 (간단하게)
-      try {
-        const response = await fetch('/api/admin/get-profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id }),
-        })
+      // 직접 조회 (API 호출 제거로 성능 개선)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      
+      if (error) {
+        console.warn('⚠️ Navigation 프로필 조회 실패:', error.message)
+        setProfile(null)
+        setLoading(false)
+        return
+      }
+
+      if (data) {
+        const profile = data as Profile
         
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success && result.profile) {
-            const profile = result.profile as Profile
-            
-            // 관리자 승인 상태 확인 (관리자는 제외)
-            if (profile.role !== 'admin') {
-              const verificationStatus = profile.license_verification_status || 'pending'
-              
-              if (verificationStatus !== 'approved') {
-                // 승인되지 않은 사용자는 로그아웃 처리
-                console.log('❌ 관리자 승인 대기 중인 사용자, 로그아웃 처리')
-                await supabase.auth.signOut()
-                router.push('/login')
-                setLoading(false)
-                return
-              }
-            }
-            
-            setProfile(profile)
+        // 관리자 승인 상태 확인 (관리자는 제외)
+        if (profile.role !== 'admin') {
+          const verificationStatus = profile.license_verification_status || 'pending'
+          
+          if (verificationStatus !== 'approved') {
+            // 승인되지 않은 사용자는 로그아웃 처리
+            console.log('❌ 관리자 승인 대기 중인 사용자, 로그아웃 처리')
+            await supabase.auth.signOut()
+            router.push('/login')
             setLoading(false)
             return
           }
         }
-      } catch (apiError) {
-        console.warn('⚠️ Navigation API 호출 실패, 직접 조회 시도')
-      }
-
-      // API 실패 시 직접 조회
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
         
-        if (!error && data) {
-          const profile = data as Profile
-          
-          // 관리자 승인 상태 확인 (관리자는 제외)
-          if (profile.role !== 'admin') {
-            const verificationStatus = profile.license_verification_status || 'pending'
-            
-            if (verificationStatus !== 'approved') {
-              // 승인되지 않은 사용자는 로그아웃 처리
-              console.log('❌ 관리자 승인 대기 중인 사용자, 로그아웃 처리')
-              await supabase.auth.signOut()
-              router.push('/login')
-              setLoading(false)
-              return
-            }
-          }
-          
-          setProfile(profile)
-        }
-      } catch (directError) {
-        console.warn('⚠️ Navigation 직접 조회 실패')
+        setProfile(profile)
       }
     } catch (error: any) {
       console.error('❌ Navigation 프로필 조회 오류:', error.message || error)
+      setProfile(null)
     } finally {
       setLoading(false)
     }
-  }, [supabase, pathname])
+  }, [supabase, pathname, router])
 
   useEffect(() => {
     // 로그인/회원가입 페이지에서는 프로필 조회하지 않음
