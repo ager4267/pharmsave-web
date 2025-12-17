@@ -85,7 +85,13 @@ export default function AdminPointChargeRequestsPage() {
         ? '/api/admin/point-charge-requests'
         : `/api/admin/point-charge-requests?status=${filterStatus}`
       
-      const response = await fetch(url)
+      // 캐시 무시를 위해 timestamp 추가
+      const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      })
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
@@ -125,9 +131,18 @@ export default function AdminPointChargeRequestsPage() {
       const result = await response.json()
 
       if (result.success) {
+        // 로컬 상태 즉시 업데이트
+        setRequests(prevRequests => 
+          prevRequests.map(req => 
+            req.id === request.id 
+              ? { ...req, status: 'approved' as const, reviewed_at: new Date().toISOString(), admin_notes: adminNotes || null }
+              : req
+          )
+        )
         alert('포인트 충전 요청이 승인되었습니다.')
         setSelectedRequest(null)
         setAdminNotes('')
+        // 서버에서 최신 데이터 가져오기
         await fetchRequests()
       } else {
         alert(result.error || '포인트 충전 요청 승인에 실패했습니다.')
@@ -168,9 +183,18 @@ export default function AdminPointChargeRequestsPage() {
       const result = await response.json()
 
       if (result.success) {
+        // 로컬 상태 즉시 업데이트
+        setRequests(prevRequests => 
+          prevRequests.map(req => 
+            req.id === request.id 
+              ? { ...req, status: 'rejected' as const, reviewed_at: new Date().toISOString(), admin_notes: adminNotes || null }
+              : req
+          )
+        )
         alert('포인트 충전 요청이 거부되었습니다.')
         setSelectedRequest(null)
         setAdminNotes('')
+        // 서버에서 최신 데이터 가져오기
         await fetchRequests()
       } else {
         alert(result.error || '포인트 충전 요청 거부에 실패했습니다.')
