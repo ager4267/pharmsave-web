@@ -36,8 +36,14 @@ export function createErrorResponse(
   const response: ApiError = {
     success: false,
     error,
-    ...(code && { code }),
-    ...(details && { details }),
+  }
+
+  if (code) {
+    response.code = code
+  }
+
+  if (details !== undefined && details !== null) {
+    response.details = details
   }
 
   return NextResponse.json(response, { status })
@@ -52,8 +58,14 @@ export function createSuccessResponse<T>(
 ): NextResponse<ApiSuccess<T>> {
   const response: ApiSuccess<T> = {
     success: true,
-    ...(data && { data }),
-    ...(message && { message }),
+  }
+
+  if (data !== undefined) {
+    response.data = data
+  }
+
+  if (message) {
+    response.message = message
   }
 
   return NextResponse.json(response)
@@ -118,4 +130,5 @@ export function validateRequestBody<T extends Record<string, unknown>>(
     data: body as T,
   }
 }
+
 
