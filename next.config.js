@@ -29,10 +29,6 @@ const nextConfig = {
   poweredByHeader: false,
   // 성능 최적화
   swcMinify: true,
-  // 실험적 기능 (성능 개선)
-  experimental: {
-    optimizeCss: true,
-  },
   // 환경 변수 검증
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
