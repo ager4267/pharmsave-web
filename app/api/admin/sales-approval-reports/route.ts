@@ -115,6 +115,13 @@ export async function GET(request: Request) {
     if (status) {
       query = query.eq('status', status)
       console.log('🔍 판매 승인 보고서 조회 - status 필터:', status)
+      
+      // 'sent' 상태인 경우, 확인된 보고서(confirmed_at이 null이 아닌)는 제외
+      // 판매자가 확인한 보고서는 "새 보고서"로 카운트하지 않음
+      if (status === 'sent') {
+        query = query.is('confirmed_at', null)
+        console.log('🔍 sent 상태 필터: confirmed_at이 null인 보고서만 조회 (확인 안 한 보고서만)')
+      }
     }
 
     const { data, error } = await query

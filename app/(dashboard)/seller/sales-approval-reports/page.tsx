@@ -150,6 +150,9 @@ export default function SellerSalesApprovalReportsPage() {
       if (result.success) {
         alert('보고서를 확인했습니다.')
         await fetchData()
+        // 대시보드로 돌아가서 카운트가 업데이트되도록 이동
+        // 대시보드의 focus 이벤트 리스너가 자동으로 데이터를 새로고침함
+        router.push('/seller/dashboard')
       } else {
         alert(result.error || '보고서 확인에 실패했습니다.')
       }

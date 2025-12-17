@@ -26,6 +26,18 @@ export default function SellerDashboardPage() {
     fetchData()
   }, [])
 
+  // 페이지 포커스 시 데이터 새로고침 (판매승인보고서 확인 후 돌아왔을 때 카운트 업데이트)
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchData()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
+
   const fetchData = async () => {
     try {
       console.log('🔍 판매자 대시보드 로드 시작...')
@@ -124,37 +136,53 @@ export default function SellerDashboardPage() {
         .select('id')
         .eq('user_id', user.id)
 
-      // 5. 판매 승인 보고서 통계 조회 (전달됨 상태인 보고서 수)
-      // API를 통해 조회하여 판매승인보고서 페이지와 동일한 로직 사용
+      // 5. 판매 승인 보고서 통계 조회 (전달됨 상태이면서 아직 확인하지 않은 보고서 수)
+      // 확인된 보고서(confirmed_at이 null이 아닌)는 제외
       let pendingReportsCount = 0
       try {
-        const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}&status=sent`)
-        if (reportsResponse.ok) {
-          const reportsResult = await reportsResponse.json()
-          if (reportsResult.success) {
-            pendingReportsCount = reportsResult.reports?.length || 0
-            console.log('✅ 판매 승인 보고서 카운트 조회 성공:', {
-              sellerId: user.id,
-              count: pendingReportsCount,
-            })
-          } else {
-            console.error('❌ 판매 승인 보고서 카운트 조회 실패:', reportsResult.error)
+        // Supabase MCP 서버를 활용하여 직접 데이터베이스 조회
+        // status='sent'이고 confirmed_at이 null인 보고서만 카운트
+        const { data: reports, error: reportsError } = await supabase
+          .from('sales_approval_reports')
+          .select('id, status, confirmed_at')
+          .eq('seller_id', user.id)
+          .eq('status', 'sent')
+          .is('confirmed_at', null)
+        
+        if (reportsError) {
+          console.error('❌ 판매 승인 보고서 카운트 조회 실패:', reportsError)
+          // API fallback 시도
+          const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}&status=sent`)
+          if (reportsResponse.ok) {
+            const reportsResult = await reportsResponse.json()
+            if (reportsResult.success) {
+              // API 응답에서 confirmed_at이 null인 보고서만 필터링
+              pendingReportsCount = (reportsResult.reports || []).filter((r: any) => !r.confirmed_at).length
+            }
           }
         } else {
-          console.error('❌ 판매 승인 보고서 카운트 조회 HTTP 오류:', {
-            status: reportsResponse.status,
-            statusText: reportsResponse.statusText,
+          pendingReportsCount = reports?.length || 0
+          console.log('✅ 판매 승인 보고서 카운트 조회 성공 (확인 안 한 보고서만):', {
+            sellerId: user.id,
+            count: pendingReportsCount,
+            totalSent: reports?.length || 0,
           })
         }
       } catch (apiError) {
         console.error('❌ 판매 승인 보고서 카운트 조회 API 오류:', apiError)
-        // API 실패 시 클라이언트 사이드에서 직접 조회 (fallback)
-        const { data: reports } = await supabase
-          .from('sales_approval_reports')
-          .select('id')
-          .eq('seller_id', user.id)
-          .eq('status', 'sent')
-        pendingReportsCount = reports?.length || 0
+        // 최종 fallback: API를 통해 조회
+        try {
+          const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}&status=sent`)
+          if (reportsResponse.ok) {
+            const reportsResult = await reportsResponse.json()
+            if (reportsResult.success) {
+              // confirmed_at이 null인 보고서만 카운트
+              pendingReportsCount = (reportsResult.reports || []).filter((r: any) => !r.confirmed_at).length
+            }
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback 조회도 실패:', fallbackError)
+        }
       }
 
       setStats({
