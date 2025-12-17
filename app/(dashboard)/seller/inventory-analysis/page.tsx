@@ -1,12 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import * as XLSX from 'xlsx'
+import dynamic from 'next/dynamic'
 import { analyzeInventory } from '@/lib/utils/inventory-analyzer'
 import type { ExpiringItem, DeadStockItem, InventoryAnalysisStatistics, AnalysisPeriod } from '@/lib/types'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts'
+
+// 큰 라이브러리 동적 임포트 (코드 스플리팅)
+const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false })
+const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false })
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false })
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false })
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false })
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false })
+const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false })
+const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false })
+const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false })
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false })
+
+// XLSX는 필요할 때만 로드
+let XLSX: typeof import('xlsx') | null = null
+const loadXLSX = async () => {
+  if (!XLSX) {
+    XLSX = await import('xlsx')
+  }
+  return XLSX
+}
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
 
@@ -32,6 +52,9 @@ export default function InventoryAnalysisPage() {
     setError(null)
 
     try {
+      // XLSX 라이브러리 동적 로드
+      const xlsx = await loadXLSX()
+
       // 파일 유효성 검사
       if (inventoryFile.size === 0 || salesFile.size === 0) {
         setError('파일이 비어있습니다. 유효한 파일을 업로드해주세요.')
@@ -58,33 +81,149 @@ export default function InventoryAnalysisPage() {
         return
       }
 
-      const inventoryWorkbook = XLSX.read(inventoryBuffer, { type: 'array' })
-      const inventorySheet = inventoryWorkbook.Sheets[inventoryWorkbook.SheetNames[0]]
-      const inventoryData = XLSX.utils.sheet_to_json(inventorySheet) as any[]
+      // 컬럼명 정규화 함수 (공백 제거, 대소문자 무시)
+      const normalizeColumnName = (name: string): string => {
+        return name.replace(/\s+/g, '').toLowerCase()
+      }
+      
+      // 유연한 컬럼명 매칭 함수
+      const findColumn = (availableCols: string[], possibleNames: string[]): string | null => {
+        // 1. 정확한 매칭 시도
+        for (const name of possibleNames) {
+          if (availableCols.includes(name)) {
+            return name
+          }
+        }
+        
+        // 2. 정규화된 매칭 시도 (공백 제거, 대소문자 무시)
+        const normalizedAvailable = availableCols.map(normalizeColumnName)
+        for (const name of possibleNames) {
+          const normalizedName = normalizeColumnName(name)
+          const foundIndex = normalizedAvailable.indexOf(normalizedName)
+          if (foundIndex !== -1) {
+            return availableCols[foundIndex] // 원본 컬럼명 반환
+          }
+        }
+        
+        return null
+      }
 
-      const inventoryItems = inventoryData.map((row) => {
-        // 제품명: 제품명, 상품명, 제품, 상품, product_name
-        const productName = row['제품명'] || row['상품명'] || row['제품'] || row['상품'] || row['product_name'] || ''
+      const inventoryWorkbook = xlsx.read(inventoryBuffer, { type: 'array' })
+      
+      // 시트 확인
+      if (!inventoryWorkbook.SheetNames || inventoryWorkbook.SheetNames.length === 0) {
+        setError('재고 파일에 시트가 없습니다. 유효한 Excel 파일을 업로드해주세요.')
+        setLoading(false)
+        return
+      }
+      
+      const inventorySheet = inventoryWorkbook.Sheets[inventoryWorkbook.SheetNames[0]]
+      
+      // 시트가 비어있는지 확인
+      if (!inventorySheet || Object.keys(inventorySheet).length === 0) {
+        setError('재고 파일의 첫 번째 시트가 비어있습니다. 데이터가 있는 시트를 확인해주세요.')
+        setLoading(false)
+        return
+      }
+      
+      const inventoryData = xlsx.utils.sheet_to_json(inventorySheet) as any[]
+      
+      // 원본 데이터 확인
+      if (!inventoryData || inventoryData.length === 0) {
+        setError('재고 파일에서 데이터를 읽을 수 없습니다. 파일이 비어있거나 형식이 올바르지 않습니다.')
+        setLoading(false)
+        return
+      }
+      
+      // 디버깅: 첫 번째 행의 컬럼명 확인
+      const firstRow = inventoryData[0]
+      const availableColumns = firstRow ? Object.keys(firstRow) : []
+      console.log('📋 재고 파일 컬럼명:', availableColumns)
+      console.log('📋 재고 파일 원본 데이터 수:', inventoryData.length)
+      
+      // 제품명 컬럼 찾기 시도
+      const productNameColumns = ['제품명', '상품명', '제품', '상품', 'product_name', 'Product Name', '제품명 ', ' 상품명']
+      const foundProductColumn = findColumn(availableColumns, productNameColumns)
+      
+      // 수량 컬럼 찾기 시도
+      const quantityColumns = ['수량', '갯수', '수', 'quantity', 'Quantity', '수량 ', ' 갯수']
+      const foundQuantityColumn = findColumn(availableColumns, quantityColumns)
+      
+      // 규격 컬럼 찾기 (선택사항)
+      const specificationColumns = ['규격', '포장단위', '포장수량', 'specification', 'Specification']
+      const foundSpecificationColumn = findColumn(availableColumns, specificationColumns)
+      
+      // 제조번호 컬럼 찾기 (선택사항)
+      const manufacturingNumberColumns = ['제조번호', 'LOT', 'LOT번호', 'lot', 'lot번호', 'manufacturing_number', 'LOT No']
+      const foundManufacturingNumberColumn = findColumn(availableColumns, manufacturingNumberColumns)
+      
+      // 유효기간 컬럼 찾기 (선택사항)
+      const expiryDateColumns = ['유효기간', '유통기한', '사용기한', 'expiry_date', 'Expiry Date', '유효기간 ']
+      const foundExpiryDateColumn = findColumn(availableColumns, expiryDateColumns)
+      
+      console.log('🔍 컬럼 매칭 결과:', {
+        제품명: foundProductColumn || '(찾을 수 없음)',
+        수량: foundQuantityColumn || '(찾을 수 없음)',
+        규격: foundSpecificationColumn || '(찾을 수 없음)',
+        제조번호: foundManufacturingNumberColumn || '(찾을 수 없음)',
+        유효기간: foundExpiryDateColumn || '(찾을 수 없음)',
+      })
+      
+      if (!foundProductColumn) {
+        setError(`재고 파일에서 제품명 컬럼을 찾을 수 없습니다. 필요한 컬럼: ${productNameColumns.slice(0, 5).join(', ')} 중 하나. 현재 파일의 컬럼: ${availableColumns.join(', ') || '없음'}`)
+        setLoading(false)
+        return
+      }
+      
+      if (!foundQuantityColumn) {
+        setError(`재고 파일에서 수량 컬럼을 찾을 수 없습니다. 필요한 컬럼: ${quantityColumns.slice(0, 4).join(', ')} 중 하나. 현재 파일의 컬럼: ${availableColumns.join(', ') || '없음'}`)
+        setLoading(false)
+        return
+      }
+
+      const inventoryItems = inventoryData.map((row, index) => {
+        // 제품명: 찾은 컬럼명 사용
+        const productName = foundProductColumn ? (row[foundProductColumn] || '').toString().trim() : ''
         
-        // 규격: 규격, 포장단위, 포장수량, specification
-        const specification = row['규격'] || row['포장단위'] || row['포장수량'] || row['specification'] || ''
+        // 규격: 찾은 컬럼명 사용 (없으면 여러 후보 시도)
+        const specification = foundSpecificationColumn 
+          ? (row[foundSpecificationColumn] || '').toString().trim()
+          : (row['규격'] || row['포장단위'] || row['포장수량'] || row['specification'] || '').toString().trim()
         
-        // 제조번호: 제조번호, LOT, LOT번호, lot, lot번호, manufacturing_number (선택사항)
-        const manufacturingNumber = row['제조번호'] || row['LOT'] || row['LOT번호'] || row['lot'] || row['lot번호'] || row['manufacturing_number'] || ''
+        // 제조번호: 찾은 컬럼명 사용 (없으면 여러 후보 시도)
+        const manufacturingNumber = foundManufacturingNumberColumn
+          ? (row[foundManufacturingNumberColumn] || '').toString().trim()
+          : (row['제조번호'] || row['LOT'] || row['LOT번호'] || row['lot'] || row['lot번호'] || row['manufacturing_number'] || '').toString().trim()
         
-        // 유효기간: 유효기간, 유통기한, 사용기한, expiry_date (선택사항)
+        // 유효기간: 찾은 컬럼명 사용 (없으면 여러 후보 시도)
         // Excel 날짜 숫자 형식도 그대로 전달 (analyzer에서 처리)
-        let expiryDate = row['유효기간'] || row['유통기한'] || row['사용기한'] || row['expiry_date'] || ''
+        let expiryDate = foundExpiryDateColumn
+          ? row[foundExpiryDateColumn]
+          : (row['유효기간'] || row['유통기한'] || row['사용기한'] || row['expiry_date'] || '')
         
         // 문자열인 경우만 정리 (숫자는 Excel 날짜일 수 있으므로 그대로 전달)
         if (typeof expiryDate === 'string' && expiryDate.trim() !== '') {
-          // 공백 제거
           expiryDate = expiryDate.trim()
         }
         
-        // 수량: 수량, 갯수, 수, quantity
-        const quantityStr = row['수량'] || row['갯수'] || row['수'] || row['quantity'] || '0'
-        const quantity = parseInt(quantityStr, 10)
+        // 수량: 찾은 컬럼명 사용
+        const quantityStr = foundQuantityColumn 
+          ? (row[foundQuantityColumn] || '0').toString().trim()
+          : (row['수량'] || row['갯수'] || row['수'] || row['quantity'] || '0').toString().trim()
+        const quantity = parseInt(quantityStr, 10) || 0
+        
+        const rowIndex = index + 2 // Excel 행 번호 (헤더 포함)
+        
+        // 제품명과 수량만 필수
+        const isValid = productName && productName.trim() !== '' && quantity > 0
+        if (!isValid) {
+          console.warn(`⚠️ 행 ${rowIndex} 필터링됨:`, {
+            제품명: productName || '(없음)',
+            수량: quantity,
+            제품명_빈값: !productName || productName.trim() === '',
+            수량_0이하: quantity <= 0,
+          })
+        }
         
         return {
           product_name: productName,
@@ -93,7 +232,18 @@ export default function InventoryAnalysisPage() {
           expiry_date: expiryDate,
           quantity: quantity,
         }
-      }).filter(item => item.product_name && item.quantity > 0) // 제품명과 수량만 필수
+      }).filter(item => item.product_name && item.product_name.trim() !== '' && item.quantity > 0)
+
+      // 필터링 후 데이터 확인
+      console.log('📊 필터링 후 재고 데이터 수:', inventoryItems.length)
+      console.log('📊 필터링 전 데이터 수:', inventoryData.length)
+      
+      if (inventoryItems.length === 0) {
+        const filteredCount = inventoryData.length - inventoryItems.length
+        setError(`재고 파일에서 유효한 데이터를 찾을 수 없습니다. 총 ${inventoryData.length}개 행 중 유효한 데이터가 없습니다. 제품명이 비어있거나 수량이 0 이하인 행은 제외됩니다. 파일 형식을 확인해주세요. (필요한 컬럼: 제품명 또는 상품명, 수량)`)
+        setLoading(false)
+        return
+      }
 
       // 매출 파일 파싱
       let salesBuffer: ArrayBuffer
@@ -106,23 +256,107 @@ export default function InventoryAnalysisPage() {
         return
       }
 
-      const salesWorkbook = XLSX.read(salesBuffer, { type: 'array' })
+      const salesWorkbook = xlsx.read(salesBuffer, { type: 'array' })
+      
+      // 시트 확인
+      if (!salesWorkbook.SheetNames || salesWorkbook.SheetNames.length === 0) {
+        setError('매출 파일에 시트가 없습니다. 유효한 Excel 파일을 업로드해주세요.')
+        setLoading(false)
+        return
+      }
+      
       const salesSheet = salesWorkbook.Sheets[salesWorkbook.SheetNames[0]]
-      const salesData = XLSX.utils.sheet_to_json(salesSheet) as any[]
+      
+      // 시트가 비어있는지 확인
+      if (!salesSheet || Object.keys(salesSheet).length === 0) {
+        setError('매출 파일의 첫 번째 시트가 비어있습니다. 데이터가 있는 시트를 확인해주세요.')
+        setLoading(false)
+        return
+      }
+      
+      const salesData = xlsx.utils.sheet_to_json(salesSheet) as any[]
+      
+      // 원본 데이터 확인
+      if (!salesData || salesData.length === 0) {
+        setError('매출 파일에서 데이터를 읽을 수 없습니다. 파일이 비어있거나 형식이 올바르지 않습니다.')
+        setLoading(false)
+        return
+      }
+      
+      // 디버깅: 첫 번째 행의 컬럼명 확인
+      const firstSalesRow = salesData[0]
+      const availableSalesColumns = firstSalesRow ? Object.keys(firstSalesRow) : []
+      console.log('📋 매출 파일 컬럼명:', availableSalesColumns)
+      console.log('📋 매출 파일 원본 데이터 수:', salesData.length)
+      
+      // 매출일 컬럼 찾기 시도
+      const salesDateColumns = ['매출일', '출하일', '매출일자', '출하일자', 'sales_date', 'Sales Date', '매출일 ', ' 출하일']
+      const foundSalesDateColumn = findColumn(availableSalesColumns, salesDateColumns)
+      
+      // 상품명 컬럼 찾기 시도
+      const salesProductColumns = ['상품명', '제품명', '제품', '상품', 'product_name', 'Product Name', '상품명 ']
+      const foundSalesProductColumn = findColumn(availableSalesColumns, salesProductColumns)
+      
+      // 규격 컬럼 찾기 (선택사항)
+      const salesSpecificationColumns = ['규격', '포장단위', '포장수량', 'specification', 'Specification']
+      const foundSalesSpecificationColumn = findColumn(availableSalesColumns, salesSpecificationColumns)
+      
+      // 수량 컬럼 찾기 (선택사항)
+      const salesQuantityColumns = ['수량', '갯수', '수', 'quantity', 'Quantity', '수량 ']
+      const foundSalesQuantityColumn = findColumn(availableSalesColumns, salesQuantityColumns)
+      
+      console.log('🔍 매출 파일 컬럼 매칭 결과:', {
+        매출일: foundSalesDateColumn || '(찾을 수 없음)',
+        상품명: foundSalesProductColumn || '(찾을 수 없음)',
+        규격: foundSalesSpecificationColumn || '(찾을 수 없음)',
+        수량: foundSalesQuantityColumn || '(찾을 수 없음)',
+      })
+      
+      if (!foundSalesDateColumn) {
+        setError(`매출 파일에서 매출일 컬럼을 찾을 수 없습니다. 필요한 컬럼: ${salesDateColumns.slice(0, 5).join(', ')} 중 하나. 현재 파일의 컬럼: ${availableSalesColumns.join(', ') || '없음'}`)
+        setLoading(false)
+        return
+      }
+      
+      if (!foundSalesProductColumn) {
+        setError(`매출 파일에서 상품명 컬럼을 찾을 수 없습니다. 필요한 컬럼: ${salesProductColumns.slice(0, 5).join(', ')} 중 하나. 현재 파일의 컬럼: ${availableSalesColumns.join(', ') || '없음'}`)
+        setLoading(false)
+        return
+      }
 
-      const salesItems = salesData.map((row) => {
-        // 매출일: 매출일, 출하일, 매출일자, 출하일자, sales_date
-        const salesDate = row['매출일'] || row['출하일'] || row['매출일자'] || row['출하일자'] || row['sales_date'] || ''
+      const salesItems = salesData.map((row, index) => {
+        // 매출일: 찾은 컬럼명 사용
+        const salesDate = foundSalesDateColumn 
+          ? (row[foundSalesDateColumn] || '').toString().trim()
+          : (row['매출일'] || row['출하일'] || row['매출일자'] || row['출하일자'] || row['sales_date'] || '').toString().trim()
         
-        // 상품명: 상품명, 제품명, 제품, 상품, product_name
-        const productName = row['상품명'] || row['제품명'] || row['제품'] || row['상품'] || row['product_name'] || ''
+        // 상품명: 찾은 컬럼명 사용
+        const productName = foundSalesProductColumn
+          ? (row[foundSalesProductColumn] || '').toString().trim()
+          : (row['상품명'] || row['제품명'] || row['제품'] || row['상품'] || row['product_name'] || '').toString().trim()
         
-        // 규격: 규격, 포장단위, 포장수량, specification
-        const specification = row['규격'] || row['포장단위'] || row['포장수량'] || row['specification'] || ''
+        // 규격: 찾은 컬럼명 사용 (없으면 여러 후보 시도)
+        const specification = foundSalesSpecificationColumn
+          ? (row[foundSalesSpecificationColumn] || '').toString().trim()
+          : (row['규격'] || row['포장단위'] || row['포장수량'] || row['specification'] || '').toString().trim()
         
-        // 수량: 수량, 갯수, 수, quantity
-        const quantityStr = row['수량'] || row['갯수'] || row['수'] || row['quantity'] || '0'
-        const quantity = parseInt(quantityStr, 10)
+        // 수량: 찾은 컬럼명 사용 (없으면 여러 후보 시도)
+        const quantityStr = foundSalesQuantityColumn
+          ? (row[foundSalesQuantityColumn] || '0').toString().trim()
+          : (row['수량'] || row['갯수'] || row['수'] || row['quantity'] || '0').toString().trim()
+        const quantity = parseInt(quantityStr, 10) || 0
+        
+        const rowIndex = index + 2 // Excel 행 번호 (헤더 포함)
+        
+        const isValid = productName && productName.trim() !== '' && salesDate && salesDate.toString().trim() !== ''
+        if (!isValid) {
+          console.warn(`⚠️ 매출 행 ${rowIndex} 필터링됨:`, {
+            상품명: productName || '(없음)',
+            매출일: salesDate || '(없음)',
+            상품명_빈값: !productName || productName.trim() === '',
+            매출일_빈값: !salesDate || salesDate.toString().trim() === '',
+          })
+        }
         
         return {
           sales_date: salesDate,
@@ -130,7 +364,10 @@ export default function InventoryAnalysisPage() {
           specification: specification,
           quantity: quantity,
         }
-      }).filter(item => item.product_name && item.sales_date)
+      }).filter(item => item.product_name && item.product_name.trim() !== '' && item.sales_date && item.sales_date.toString().trim() !== '')
+      
+      console.log('📊 필터링 후 매출 데이터 수:', salesItems.length)
+      console.log('📊 필터링 전 매출 데이터 수:', salesData.length)
 
       if (inventoryItems.length === 0) {
         setError('재고 파일에서 유효한 데이터를 찾을 수 없습니다.')
@@ -210,13 +447,16 @@ export default function InventoryAnalysisPage() {
     }
   }
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!statistics) return
 
-    const wb = XLSX.utils.book_new()
+    // XLSX 라이브러리 동적 로드
+    const xlsx = await loadXLSX()
+
+    const wb = xlsx.utils.book_new()
 
     // 유효기간 임박 재고 시트
-    const expiringWS = XLSX.utils.json_to_sheet(
+    const expiringWS = xlsx.utils.json_to_sheet(
       expiringItems.map((item) => ({
         제품명: item.product_name,
         규격: item.specification,
@@ -227,10 +467,10 @@ export default function InventoryAnalysisPage() {
         위험도: item.risk_level,
       }))
     )
-    XLSX.utils.book_append_sheet(wb, expiringWS, '유효기간 임박 재고')
+    xlsx.utils.book_append_sheet(wb, expiringWS, '유효기간 임박 재고')
 
     // 불용 재고 시트
-    const deadStockWS = XLSX.utils.json_to_sheet(
+    const deadStockWS = xlsx.utils.json_to_sheet(
       deadStockItems.map((item) => ({
         제품명: item.product_name,
         규격: item.specification,
@@ -240,10 +480,10 @@ export default function InventoryAnalysisPage() {
         상태: item.dead_stock_status === 'dead_stock' ? '불용 재고' : '일반 재고',
       }))
     )
-    XLSX.utils.book_append_sheet(wb, deadStockWS, '불용 재고')
+    xlsx.utils.book_append_sheet(wb, deadStockWS, '불용 재고')
 
     // 통계 시트
-    const statsWS = XLSX.utils.json_to_sheet([
+    const statsWS = xlsx.utils.json_to_sheet([
       { 항목: '총 재고 수', 값: statistics.total_items },
       { 항목: '유효기간 임박 재고 수', 값: statistics.expiring_count },
       { 항목: '유효기간 임박 재고 비율', 값: `${statistics.expiring_percentage.toFixed(2)}%` },
@@ -253,9 +493,9 @@ export default function InventoryAnalysisPage() {
       { 항목: '위험도 중간', 값: statistics.risk_level_medium },
       { 항목: '위험도 낮음', 값: statistics.risk_level_low },
     ])
-    XLSX.utils.book_append_sheet(wb, statsWS, '통계')
+    xlsx.utils.book_append_sheet(wb, statsWS, '통계')
 
-    XLSX.writeFile(wb, `재고분석_${new Date().toISOString().split('T')[0]}.xlsx`)
+    xlsx.writeFile(wb, `재고분석_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   const chartData = statistics
