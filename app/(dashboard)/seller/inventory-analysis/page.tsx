@@ -1,23 +1,22 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { analyzeInventory } from '@/lib/utils/inventory-analyzer'
 import type { ExpiringItem, DeadStockItem, InventoryAnalysisStatistics, AnalysisPeriod } from '@/lib/types'
-
-// 큰 라이브러리 동적 임포트 (코드 스플리팅)
-const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false })
-const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false })
-const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false })
-const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false })
-const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false })
-const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false })
-const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false })
-const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false })
-const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false })
-const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false })
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts'
 
 // XLSX는 필요할 때만 로드
 let XLSX: typeof import('xlsx') | null = null
