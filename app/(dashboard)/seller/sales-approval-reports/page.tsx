@@ -51,9 +51,9 @@ export default function SellerSalesApprovalReportsPage() {
         timestamp: new Date().toISOString(),
       })
       
-      // 판매승인보고서 조회 (status 필터 없이 모든 상태 조회)
-      // 대시보드에서는 'sent' 상태만 카운트하지만, 페이지에서는 모든 상태를 보여줌
-      const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}`)
+      // 판매승인보고서 조회 - 'sent' 상태만 조회 (대시보드와 동일한 필터 적용)
+      // 대시보드에서 "새 보고서"로 표시되는 것은 'sent' 상태의 보고서이므로, 목록에서도 동일하게 표시
+      const reportsResponse = await fetch(`/api/admin/sales-approval-reports?seller_id=${user.id}&status=sent`)
       
       if (!reportsResponse.ok) {
         console.error('❌ 판매 승인 보고서 조회 HTTP 오류:', {
