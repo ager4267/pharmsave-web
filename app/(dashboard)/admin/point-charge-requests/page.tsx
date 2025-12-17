@@ -52,25 +52,27 @@ export default function AdminPointChargeRequestsPage() {
         return
       }
 
-      // 프로필 정보 가져오기
-      const response = await fetch('/api/admin/get-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
-      })
+      // 프로필 정보 가져오기 (최초 1회만)
+      if (!profile) {
+        const response = await fetch('/api/admin/get-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id }),
+        })
 
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.profile) {
-          if (result.profile.role !== 'admin') {
-            router.push('/seller/dashboard')
-            return
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.profile) {
+            if (result.profile.role !== 'admin') {
+              router.push('/seller/dashboard')
+              return
+            }
+            setProfile(result.profile as Profile)
           }
-          setProfile(result.profile as Profile)
         }
       }
 
-      // 포인트 충전 요청 조회
+      // 포인트 충전 요청 조회 (필터 변경 시마다 최신 데이터 가져오기)
       await fetchRequests()
     } catch (error) {
       console.error('오류:', error)
@@ -85,21 +87,40 @@ export default function AdminPointChargeRequestsPage() {
         ? '/api/admin/point-charge-requests'
         : `/api/admin/point-charge-requests?status=${filterStatus}`
       
-      // 캐시 무시를 위해 timestamp 추가
-      const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`, {
+      // 캐시 완전 무시를 위해 timestamp와 여러 헤더 추가
+      const timestamp = Date.now()
+      const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}_t=${timestamp}&_r=${Math.random()}`, {
         cache: 'no-store',
+        method: 'GET',
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
         },
       })
+      
       if (response.ok) {
         const result = await response.json()
         if (result.success) {
-          setRequests(result.data || [])
+          // 필터 상태와 일치하는 데이터만 설정
+          const filteredData = result.data || []
+          console.log(`📋 필터: ${filterStatus}, 조회된 데이터: ${filteredData.length}개`, {
+            filterStatus,
+            dataCount: filteredData.length,
+            statuses: filteredData.map((r: PointChargeRequest) => ({ id: r.id, status: r.status })),
+          })
+          setRequests(filteredData)
+        } else {
+          console.error('❌ API 응답 실패:', result.error)
+          setRequests([])
         }
+      } else {
+        console.error('❌ HTTP 오류:', response.status, response.statusText)
+        setRequests([])
       }
     } catch (error) {
-      console.error('충전 요청 조회 오류:', error)
+      console.error('❌ 충전 요청 조회 오류:', error)
+      setRequests([])
     }
   }
 
@@ -131,18 +152,10 @@ export default function AdminPointChargeRequestsPage() {
       const result = await response.json()
 
       if (result.success) {
-        // 로컬 상태 즉시 업데이트
-        setRequests(prevRequests => 
-          prevRequests.map(req => 
-            req.id === request.id 
-              ? { ...req, status: 'approved' as const, reviewed_at: new Date().toISOString(), admin_notes: adminNotes || null }
-              : req
-          )
-        )
         alert('포인트 충전 요청이 승인되었습니다.')
         setSelectedRequest(null)
         setAdminNotes('')
-        // 서버에서 최신 데이터 가져오기
+        // 서버에서 최신 데이터 가져오기 (로컬 상태 업데이트 제거 - 서버 데이터로 완전히 교체)
         await fetchRequests()
       } else {
         alert(result.error || '포인트 충전 요청 승인에 실패했습니다.')
@@ -183,18 +196,10 @@ export default function AdminPointChargeRequestsPage() {
       const result = await response.json()
 
       if (result.success) {
-        // 로컬 상태 즉시 업데이트
-        setRequests(prevRequests => 
-          prevRequests.map(req => 
-            req.id === request.id 
-              ? { ...req, status: 'rejected' as const, reviewed_at: new Date().toISOString(), admin_notes: adminNotes || null }
-              : req
-          )
-        )
         alert('포인트 충전 요청이 거부되었습니다.')
         setSelectedRequest(null)
         setAdminNotes('')
-        // 서버에서 최신 데이터 가져오기
+        // 서버에서 최신 데이터 가져오기 (로컬 상태 업데이트 제거 - 서버 데이터로 완전히 교체)
         await fetchRequests()
       } else {
         alert(result.error || '포인트 충전 요청 거부에 실패했습니다.')
