@@ -177,7 +177,7 @@ export async function DELETE(
     const message =
       deletedRows && deletedRows.length > 0
         ? '판매 승인 보고서가 삭제되었습니다.'
-        : '이미 삭제되었거나 존재하지 않는 판매 승인 보고서입니다.'
+        : '해당 판매 승인 보고서는 이미 삭제되었거나 존재하지 않아 목록에서 더 이상 표시되지 않습니다.'
 
     return NextResponse.json({
       success: true,
