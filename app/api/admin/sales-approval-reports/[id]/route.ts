@@ -135,3 +135,76 @@ export async function POST(
   }
 }
 
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return NextResponse.json(
+        { success: false, error: '환경 변수가 설정되지 않았습니다.' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+
+    // 보고서 존재 여부 확인
+    const { data: existingReport, error: fetchError } = await supabase
+      .from('sales_approval_reports')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('판매 승인 보고서 조회 오류:', fetchError)
+      return NextResponse.json(
+        { success: false, error: '판매 승인 보고서를 조회하는 중 오류가 발생했습니다.' },
+        { status: 500 }
+      )
+    }
+
+    if (!existingReport) {
+      return NextResponse.json(
+        { success: false, error: '판매 승인 보고서를 찾을 수 없습니다.' },
+        { status: 404 }
+      )
+    }
+
+    // 보고서 삭제
+    const { error: deleteError } = await supabase
+      .from('sales_approval_reports')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      console.error('판매 승인 보고서 삭제 오류:', deleteError)
+      return NextResponse.json(
+        { success: false, error: '판매 승인 보고서 삭제에 실패했습니다.' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: '판매 승인 보고서가 삭제되었습니다.',
+    })
+  } catch (error: any) {
+    console.error('오류:', error)
+    return NextResponse.json(
+      { success: false, error: error.message || '서버 오류가 발생했습니다.' },
+      { status: 500 }
+    )
+  }
+}
+

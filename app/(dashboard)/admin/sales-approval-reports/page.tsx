@@ -12,6 +12,7 @@ export default function SalesApprovalReportsPage() {
   const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'created' | 'sent' | 'confirmed' | 'shipped' | 'completed'>('all')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -64,6 +65,34 @@ export default function SalesApprovalReportsPage() {
       }
     } catch (error) {
       console.error('판매 승인 보고서 조회 오류:', error)
+    }
+  }
+
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm('이 판매 승인 보고서를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+      return
+    }
+
+    try {
+      setDeletingId(reportId)
+
+      const response = await fetch(`/api/admin/sales-approval-reports/${reportId}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert(result.message || '판매 승인 보고서가 삭제되었습니다.')
+        await fetchReports()
+      } else {
+        alert(result.error || '판매 승인 보고서 삭제에 실패했습니다.')
+      }
+    } catch (error: any) {
+      console.error('판매 승인 보고서 삭제 오류:', error)
+      alert('판매 승인 보고서 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -305,6 +334,13 @@ export default function SalesApprovalReportsPage() {
                             전달
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDeleteReport(report.id)}
+                          disabled={deletingId === report.id}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {deletingId === report.id ? '삭제 중...' : '삭제'}
+                        </button>
                       </div>
                     </td>
                   </tr>

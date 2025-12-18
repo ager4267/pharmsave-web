@@ -98,6 +98,44 @@ export default function AdminPurchaseRequestsPage() {
     }
   }
 
+  const handleDelete = async (purchaseRequestId: string) => {
+    if (!confirm('이 구매 요청을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+      return
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        alert('로그인이 필요합니다.')
+        router.push('/login')
+        return
+      }
+
+      const response = await fetch('/api/admin/delete-purchase-request', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          purchaseRequestId,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert(result.message || '구매 요청이 삭제되었습니다.')
+        await fetchPurchaseRequests()
+      } else {
+        alert(result.error || '구매 요청 삭제에 실패했습니다.')
+      }
+    } catch (error: any) {
+      console.error('구매 요청 삭제 오류:', error)
+      alert('구매 요청 삭제 중 오류가 발생했습니다.')
+    }
+  }
+
   const handleApprove = async (purchaseRequestId: string, status: 'approved' | 'rejected') => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -333,25 +371,30 @@ export default function AdminPurchaseRequestsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {request.status === 'pending' && (
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleApprove(request.id, 'approved')}
-                            className="text-green-600 hover:text-green-900"
-                          >
-                            승인
-                          </button>
-                          <button
-                            onClick={() => handleApprove(request.id, 'rejected')}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            거부
-                          </button>
-                        </div>
-                      )}
-                      {request.status !== 'pending' && (
-                        <span className="text-gray-400">-</span>
-                      )}
+                      <div className="flex space-x-2">
+                        {request.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleApprove(request.id, 'approved')}
+                              className="text-green-600 hover:text-green-900"
+                            >
+                              승인
+                            </button>
+                            <button
+                              onClick={() => handleApprove(request.id, 'rejected')}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              거부
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleDelete(request.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          삭제
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
