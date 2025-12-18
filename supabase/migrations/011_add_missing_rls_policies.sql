@@ -77,3 +77,5 @@ CREATE POLICY "Admins can manage all resales" ON public.resales
         )
     );
 
+
+

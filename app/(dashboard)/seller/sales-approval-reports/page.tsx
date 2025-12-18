@@ -99,18 +99,22 @@ export default function SellerSalesApprovalReportsPage() {
       }
 
       if (reportsResult.success) {
-        const reportsToSet = reportsResult.reports || []
-        setReports(reportsToSet)
-        console.log('✅ 판매 승인 보고서 설정 완료:', reportsToSet.length, '개')
+        // 완료된( completed ) 상태의 보고서는 일반 사용자 목록에서 숨깁니다
+        const visibleReports = (reportsResult.reports || []).filter(
+          (r: any) => r.status !== 'completed'
+        )
+
+        setReports(visibleReports)
+        console.log('✅ 판매 승인 보고서 설정 완료 (완료된 건 제외):', visibleReports.length, '개')
         
         // 추가 검증: 실제로 설정된 보고서 확인
-        if (reportsToSet.length === 0) {
-          console.warn('⚠️ 판매 승인 보고서가 0개입니다. 다음을 확인하세요:')
+        if (visibleReports.length === 0) {
+          console.warn('⚠️ 표시할 판매 승인 보고서가 없습니다. 다음을 확인하세요:')
           console.warn('1. seller_id가 일치하는지:', user.id)
           console.warn('2. API 응답이 올바른지:', reportsResult)
           console.warn('3. 데이터베이스에 실제로 저장되었는지 확인 필요')
         } else {
-          console.log('📊 설정된 보고서 상세:', reportsToSet.map((r: any) => ({
+          console.log('📊 표시 중인 보고서 상세:', visibleReports.map((r: any) => ({
             id: r.id,
             reportNumber: r.report_number,
             sellerId: r.seller_id,
