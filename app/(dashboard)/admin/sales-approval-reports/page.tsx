@@ -80,6 +80,13 @@ export default function SalesApprovalReportsPage() {
         method: 'DELETE',
       })
 
+      // 이미 삭제되었거나 존재하지 않는 경우(404)는 성공으로 처리
+      if (response.status === 404) {
+        alert('이미 삭제되었거나 존재하지 않는 판매 승인 보고서입니다.\n목록을 새로 고칩니다.')
+        await fetchReports()
+        return
+      }
+
       const result = await response.json()
 
       if (result.success) {

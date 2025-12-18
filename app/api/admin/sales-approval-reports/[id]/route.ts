@@ -159,33 +159,12 @@ export async function DELETE(
       }
     })
 
-    // 보고서 존재 여부 확인
-    const { data: existingReport, error: fetchError } = await supabase
-      .from('sales_approval_reports')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (fetchError) {
-      console.error('판매 승인 보고서 조회 오류:', fetchError)
-      return NextResponse.json(
-        { success: false, error: '판매 승인 보고서를 조회하는 중 오류가 발생했습니다.' },
-        { status: 500 }
-      )
-    }
-
-    if (!existingReport) {
-      return NextResponse.json(
-        { success: false, error: '판매 승인 보고서를 찾을 수 없습니다.' },
-        { status: 404 }
-      )
-    }
-
-    // 보고서 삭제
-    const { error: deleteError } = await supabase
+    // 보고서 삭제 (존재하지 않아도 에러로 보지 않고 성공 처리하여 멱등성 보장)
+    const { data: deletedRows, error: deleteError } = await supabase
       .from('sales_approval_reports')
       .delete()
       .eq('id', id)
+      .select('id')
 
     if (deleteError) {
       console.error('판매 승인 보고서 삭제 오류:', deleteError)
@@ -195,9 +174,14 @@ export async function DELETE(
       )
     }
 
+    const message =
+      deletedRows && deletedRows.length > 0
+        ? '판매 승인 보고서가 삭제되었습니다.'
+        : '이미 삭제되었거나 존재하지 않는 판매 승인 보고서입니다.'
+
     return NextResponse.json({
       success: true,
-      message: '판매 승인 보고서가 삭제되었습니다.',
+      message,
     })
   } catch (error: any) {
     console.error('오류:', error)
